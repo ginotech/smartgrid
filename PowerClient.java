@@ -24,14 +24,18 @@ public class PowerClient {
                 int clientAddr = buf[1];
                 int i = 1;
                 ByteBuffer authBuffer = ByteBuffer.allocate(4);
+                System.out.println("My address is " + myAddr);
                 while (clientAddr < 0xFF) {
+                    i++;
                     if (clientAddr == myAddr) {
-                        i++;
-                        authBuffer.wrap(buf, i, 4);
+                        System.out.format("Buffer value: 0x%02X%02X%02X%02X\n", buf[i], buf[i+1], buf[i+2], buf[i+3]);
+                        authBuffer = ByteBuffer.wrap(buf, i, 4);
                         System.out.println("Received auth for " + authBuffer.getInt());
+                        break;
                     }
+                    i += 4;
+                    clientAddr = buf[i];
                 }
-                
             }
             
         } catch (UnknownHostException e) {
