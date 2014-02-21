@@ -2,6 +2,7 @@ package smartgrid;
 import smartgrid.PowerPacket;
 import java.net.*;
 import java.io.IOException;
+import java.util.*;
 
 public class PowerServer {
     
@@ -15,17 +16,17 @@ public class PowerServer {
 			System.out.println("Usage: PowerServer <interface>");
 			System.exit(0);
 		}
-       final String destAddr = getBroadcastAddr(args[0]);
-       int[] authArray = new int[4];
-       authArray[0] = 0xDEADBEEF;
-       authArray[1] = 0xAABB;
-       authArray[2] = 0xCCDDEE;
-       authArray[3] = 0xFE;
+       final InetAddress destAddr = getBroadcastAddr(args[0]);
+	   Map<InetAddress, Integer> clientAuthMap = new HashMap<InetAddress, Integer>();
+       clientAuthMap.put(InetAddress.getByName("10.0.0.11"), 0x0123DEAD);
+	   clientAuthMap.put(InetAddress.getByName("10.0.0.12"), 0x0000AABB);
+	   clientAuthMap.put(InetAddress.getByName("10.0.0.13"), 0x01CCDDEE);
+	   clientAuthMap.put(InetAddress.getByName("10.0.0.14"), 0x000000FE);
        // Create new output socket with dynamically assigned port
        DatagramSocket sendSocket = new DatagramSocket();
        while(true) {
            try {
-               PowerPacket packet = new PowerPacket(destAddr, authArray);
+               PowerPacket packet = new PowerPacket(destAddr, clientAuthMap);
                sendSocket.send(packet.getPacket());
                System.out.print('.');
            } catch (UnknownHostException e) {
@@ -43,7 +44,7 @@ public class PowerServer {
        }
     }
     
-    public static String getBroadcastAddr(String intf) {
+    public static InetAddress getBroadcastAddr(String intf) {
         try {
             NetworkInterface networkInterface;
             // Try to find target interface
@@ -58,7 +59,7 @@ public class PowerServer {
                 InetAddress broadcastAddr = interfaceAddress.getBroadcast();
                 if (broadcastAddr != null) {
                     System.out.println("Broadcasting to " + broadcastAddr.getHostAddress());
-                    return broadcastAddr.getHostAddress();
+                    return broadcastAddr;
                 }
             }
         } catch (SocketException e) {
@@ -66,5 +67,5 @@ public class PowerServer {
             System.exit(1);
         }
         return null;
-    } 
+    }
 }
