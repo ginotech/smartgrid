@@ -14,6 +14,7 @@ public class PowerClient {
      */
     public static void main(String[] args) throws IOException {
         int myAddr = Integer.parseInt(args[0]);
+		System.out.println("My address is " + myAddr);
         try {
             DatagramSocket receiveSocket = new DatagramSocket(1234);
             while(true) {
@@ -24,7 +25,6 @@ public class PowerClient {
                 int clientAddr = buf[1];
                 int i = 1;
                 ByteBuffer authBuffer = ByteBuffer.allocate(4);
-                System.out.println("My address is " + myAddr);
                 while (clientAddr < 0xFF) {
                     i++;
                     if (clientAddr == myAddr) {
