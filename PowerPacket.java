@@ -5,7 +5,6 @@ import java.util.*;
 //
 // Wrapper class for DataPacket
 public class PowerPacket{
-    // Client address is 1 byte
     // Number of power packets remaining is 4 bytes
     
     private final DatagramPacket packet;
@@ -31,17 +30,17 @@ public class PowerPacket{
             throw new IllegalArgumentException(numClients + " is an invalid number of clients");
         }
         // Build the packet. Begin with a start byte of 0xFF
-		ByteBuffer packetData = ByteBuffer.allocate(packetSize);
+	ByteBuffer packetData = ByteBuffer.allocate(packetSize);
         packetData.put((byte) 0xFF);
         for (Map.Entry<InetAddress, Integer> entry : clientAuthMap.entrySet()) {
             // Copy client address to packet data buffer
             InetAddress clientAddr = entry.getKey();
-			packetData.put(clientAddr.getAddress());            
+            packetData.put(clientAddr.getAddress());            
             // Copy authorization value to packet data buffer
-			packetData.putInt(entry.getValue());
+            packetData.putInt(entry.getValue());
         }
         // Write four boundary bytes so we know where the real data stops
-		// TODO: need to check for size limit here
+	// TODO: need to check for size limit here
         for (int i = 0; i < 4; i++) {
             packetData.put((byte) 0xFF);
         }

@@ -29,29 +29,28 @@ public class PowerClient {
             while(true) {
                 PowerPacket packet = new PowerPacket();
                 receiveSocket.receive(packet.getPacket());
-				ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
-				// Build the packet back into a map of address and auth values
-				Map<InetAddress, Integer> clientAuthMap = new HashMap<InetAddress, Integer>();
+                ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
+                // Build the packet back into a map of address and auth values
+                Map<InetAddress, Integer> clientAuthMap = new HashMap<InetAddress, Integer>();
                 packetData.get();   // Need to throw away first 0xFF byte
                 while (packetData.remaining() >= 8) {
-					// Get the address
-					byte[] addrArray = new byte[4];
-					packetData.get(addrArray, 0, 4);
+                    // Get the address
+                    byte[] addrArray = new byte[4];
+                    packetData.get(addrArray, 0, 4);
                     // FIXME: does not break out of loop at stop bytes
                     // If we hit the stop bytes, break out of loop
                     if (addrArray[0] == 0xFF) {
                         break;
                     }
-					InetAddress clientAddr = InetAddress.getByAddress(addrArray);
-					// Get the value
-					int authValue = packetData.getInt();
-					// Add address and value to the map
-					clientAuthMap.put(clientAddr, authValue);
-				}
-
-				if (clientAuthMap.containsKey(myAddr)) {
-					System.out.format("Received authorization for 0x%08X\n", clientAuthMap.get(myAddr));
-				}
+                    InetAddress clientAddr = InetAddress.getByAddress(addrArray);
+                    // Get the value
+                    int authValue = packetData.getInt();
+                    // Add address and value to the map
+                    clientAuthMap.put(clientAddr, authValue);
+                }
+                if (clientAuthMap.containsKey(myAddr)) {
+                        System.out.format("Received authorization for 0x%08X\n", clientAuthMap.get(myAddr));
+                }
             }
         } catch (UnknownHostException e) {
             
@@ -67,8 +66,8 @@ public class PowerClient {
             networkInterface = NetworkInterface.getByName(intf);
             // If none is found, error out
             if (networkInterface == null) {
-				System.err.println("Invalid network interface.");
-				System.exit(1);
+                System.err.println("Invalid network interface.");
+                System.exit(1);
             }
             // Iterate through the bound addresses and return the first real addr
             for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
