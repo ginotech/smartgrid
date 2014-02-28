@@ -1,6 +1,7 @@
 package smartgrid;
 import smartgrid.PowerPacket;
 import java.net.*;
+import java.net.DatagramSocket;
 import java.nio.ByteBuffer;
 import java.io.IOException;
 import java.util.*;
@@ -10,7 +11,8 @@ public class PowerServer {
     static final int GRANT_FREQUENCY = 3000;    // How often to send grant packets (milliseconds)
     static final int LISTEN_PORT = 1234;        // Port on which to listen for requests / destination port for grants
     static final int REQUEST_PACKET_LENGTH = 4; // Size of the request packet in bytes
-    static InetAddress destAddr;
+    static InetAddress myAddr = null;
+    static InetAddress destAddr = null;
     static Map<InetAddress, Integer> clientAuthMap = new HashMap<>();
     // ^ Should this be here, or in main()?
 
@@ -20,9 +22,12 @@ public class PowerServer {
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
             System.out.println("Usage: java smartgrid.PowerServer <interface>");
+            System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
             System.exit(0);
         }
-        destAddr = getBroadcastAddr(args[0]);
+        final String intf = args[0];
+        myAddr = getMyAddr(intf);
+        destAddr = getBroadcastAddr(intf);
 //        clientAuthMap.put(InetAddress.getByName("10.0.0.11"), 0x0123DEAD);
 //        clientAuthMap.put(InetAddress.getByName("10.0.0.12"), 0x0000AABB);
 //        clientAuthMap.put(InetAddress.getByName("10.0.0.13"), 0x01CCDDEE);
@@ -30,40 +35,46 @@ public class PowerServer {
         
         // Sends a grant packet every GRANT_FREQUENCY (ms) comprised of all
         // requests since last grand packet was sent
-        // This should execute in a background thread and not effect listenForRequest()
+        // This should execute in a background thread and not affect listenForRequest()
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
-                sendGrantPacket();
+                sendGrantPacket();  // Send grant broadcast
+                updateAuthMap();    // Decrement auth quantities and remove if no longer active
             }
         }, GRANT_FREQUENCY, GRANT_FREQUENCY);
-        while (true) {
-            listenForRequest();
-        }
+        listenForRequest();
     }
     
     // Wait for an authorization request from a client
     public static void listenForRequest() {
-        DatagramSocket receiveSocket;
-        byte[] packetDataArray = new byte[REQUEST_PACKET_LENGTH];
-        try {
-            receiveSocket = new DatagramSocket(LISTEN_PORT);
-            DatagramPacket packet = new DatagramPacket(packetDataArray, REQUEST_PACKET_LENGTH);
-            receiveSocket.receive(packet);
-            InetAddress clientAddr = packet.getAddress();
-            int powerRequested = ByteBuffer.wrap(packet.getData()).getInt();
-            System.out.format("Request from %s for %i", clientAddr, powerRequested);
-            if (authorizeRequest(clientAddr, powerRequested)) {
-                System.out.println("Authorized.");
-            }
-            else {
-                System.out.println("Rejected.");
+        try (DatagramSocket receiveSocket = new DatagramSocket(LISTEN_PORT)) {
+            while (true) {
+                byte[] packetDataArray = new byte[REQUEST_PACKET_LENGTH];
+                try {
+                    DatagramPacket packet = new DatagramPacket(packetDataArray, REQUEST_PACKET_LENGTH);
+                    receiveSocket.receive(packet);
+                    InetAddress clientAddr = packet.getAddress();
+                    // If we sent the packet, ignore it!
+                    if (clientAddr.equals(myAddr)) {
+                        continue;
+                    }
+                    // TODO: Validate the request packet before doing anything with it!
+                    int powerRequested = ByteBuffer.wrap(packet.getData()).getInt();
+                    System.out.format("Request from %s for %d: ", clientAddr, powerRequested);
+                    if (authorizeRequest(clientAddr, powerRequested)) {
+                        System.out.println("Authorized.");
+                    }
+                    else {
+                        System.out.println("Rejected.");
+                    }
+                } catch (IOException e) {
+                    System.err.println("IOException: " + e.getMessage());
+                    System.exit(1);
+                }
             }
         } catch (SocketException e) {
-            System.err.println("SocketException");
-            System.exit(1);
-        } catch (IOException e) {
-            System.err.println("IOException");
+            System.err.println("SocketException: " + e.getMessage());
             System.exit(1);
         }
     }
@@ -80,6 +91,8 @@ public class PowerServer {
     }
     
     // Decrement authorization amounts and remove if zero
+    // NOTE: Right now, a grant packet with an auth quantity of zero will be sent before the entry is removed.
+    // Unsure if this behavior is desired. Easy change though.
     public static void updateAuthMap() {
         for (Iterator<Map.Entry<InetAddress, Integer>> i = clientAuthMap.entrySet().iterator(); i.hasNext();) {
             // If authorized power amount is zero, remove the entry from the map
@@ -99,27 +112,52 @@ public class PowerServer {
     public static void sendGrantPacket() {
         // If there are no grants to be sent, don't do anything
         if (clientAuthMap.isEmpty()) {
+//            System.out.print("Nothing to send.");
             return;
         }
         // Create new output socket with dynamically assigned port
-        DatagramSocket sendSocket;
-        try {
-            sendSocket = new DatagramSocket();
+        try (DatagramSocket sendSocket = new DatagramSocket()) {
             PowerPacket packet = new PowerPacket(destAddr, clientAuthMap);
             sendSocket.send(packet.getPacket());
-            System.out.println("Sent request packet.");
-        } catch (SocketException e) {
-            System.err.println("Socket exception " + e.getMessage());
-            System.exit(1);
+            System.out.println("Sent grant packet.");
         } catch (UnknownHostException e) {
-            System.err.println("UnknownHostException");
+            System.err.println("UnknownHostException: " + e.getMessage());
+            System.exit(1);
+        } catch (SocketException e) {
+            System.err.println("SocketException: " + e.getMessage());
             System.exit(1);
         } catch (IOException e) {
-            System.err.println("IOException");
+            System.err.println("IOException: " + e.getMessage());
             System.exit(1);
         }
     }
-    
+
+    public static InetAddress getMyAddr(String intf) {
+        try {
+            NetworkInterface networkInterface;
+            // Try to find target interface
+            networkInterface = NetworkInterface.getByName(intf);
+            // If none is found, error out
+            if (networkInterface == null) {
+                System.err.println("Invalid network interface.");
+                System.exit(1);
+            }
+            // Iterate through the bound addresses and return the first real addr
+            for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
+                InetAddress myAddr = interfaceAddress.getAddress();
+                if (myAddr != null) {
+                    return myAddr;
+                }
+            }
+        } catch (SocketException e) {
+            System.err.println("Socket exception " + e.getMessage());
+            System.exit(1);
+        }
+        System.err.println("Unable to get address!");
+        System.exit(1);
+        return null;
+    }
+
     public static InetAddress getBroadcastAddr(String intf) {
         try {
             NetworkInterface networkInterface;
