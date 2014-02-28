@@ -9,57 +9,85 @@ import java.util.*;
 
 
 public class PowerClient {
+    
+    static final int LISTEN_PORT = 1234;
+    static InetAddress myAddr;
 
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        if (args.length < 1) {
-			System.out.println("Usage: PowerClient <interface>");
-			System.exit(0);
-		}
-        InetAddress myAddr = getMyAddr(args[0]);
-		if (myAddr == null) {
-			System.err.println("Couldn't get address for interface " + args[0]);
-			System.exit(1);
-		}
-		System.out.println("My address is " + myAddr.getHostAddress());
-        try {
-            DatagramSocket receiveSocket = new DatagramSocket(1234);
-            while(true) {
-                PowerPacket packet = new PowerPacket();
-                receiveSocket.receive(packet.getPacket());
-                ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
-                // Build the packet back into a map of address and auth values
-                Map<InetAddress, Integer> clientAuthMap = new HashMap<InetAddress, Integer>();
-                packetData.get();   // Need to throw away first 0xFF byte
-                while (packetData.remaining() >= 8) {
-                    // Get the address
-                    byte[] addrArray = new byte[4];
-                    packetData.get(addrArray, 0, 4);
-                    // FIXME: does not break out of loop at stop bytes
-                    // If we hit the stop bytes, break out of loop
-                    if (addrArray[0] == 0xFF) {
-                        break;
-                    }
-                    InetAddress clientAddr = InetAddress.getByAddress(addrArray);
-                    // Get the value
-                    int authValue = packetData.getInt();
-                    // Add address and value to the map
-                    clientAuthMap.put(clientAddr, authValue);
-                }
-                if (clientAuthMap.containsKey(myAddr)) {
-                        System.out.format("Received authorization for 0x%08X\n", clientAuthMap.get(myAddr));
-                }
-            }
-        } catch (UnknownHostException e) {
-            
-        } catch (SocketException e) {
-            
+        if (args.length < 2) {
+            System.out.println("Usage: PowerClient <interface> <server address> <request size>");
+            System.exit(0);
+        }
+        myAddr = getMyAddr(args[0]);
+        final String serverAddr = args[1];
+        final int powerRequested = Integer.parseInt(args[2]);
+        System.out.println("My address is " + myAddr.getHostAddress());
+        requestPower(serverAddr, powerRequested);
+        while (true) {
+            listenForGrant();
         }
     }
-    //
-	public static InetAddress getMyAddr(String intf) {
+    
+    public static void listenForGrant() {
+        try {
+            DatagramSocket receiveSocket = new DatagramSocket(LISTEN_PORT);
+            PowerPacket packet = new PowerPacket();
+            receiveSocket.receive(packet.getPacket());
+            ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
+            // Build the packet back into a map of address and auth values
+            Map<InetAddress, Integer> clientAuthMap = new HashMap<>();
+            packetData.get();   // Need to throw away first 0xFF byte
+            while (packetData.remaining() >= 8) {
+                // Get the address
+                byte[] addrArray = new byte[4];
+                packetData.get(addrArray, 0, 4);
+                // FIXME: does not break out of loop at stop bytes
+                // If we hit the stop bytes, break out of loop
+                if (addrArray[0] == (byte)0xFF) {
+                    break;
+                }
+                InetAddress clientAddr = InetAddress.getByAddress(addrArray);
+                // Get the value
+                int authValue = packetData.getInt();
+                // Add address and value to the map
+                clientAuthMap.put(clientAddr, authValue);
+            }
+            if (clientAuthMap.containsKey(myAddr)) {
+                    System.out.format("Received authorization for 0x%08X\n", clientAuthMap.get(myAddr));
+            }
+        } catch (UnknownHostException e) {
+            System.err.println("UnknownHostException");
+            System.exit(1);
+        } catch (SocketException e) {
+            System.err.println("SocketException");
+            System.exit(1);
+        }
+    }
+
+    public static void requestPower(String serverAddr, int powerRequested) {
+        DatagramSocket sendSocket;
+        try {
+            sendSocket = new DatagramSocket();  // New socket on dynamic port
+            ByteBuffer requestBuffer = ByteBuffer.allocate(4);
+            requestBuffer.putInt(powerRequested);
+            DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), 4, InetAddress.getByName(serverAddr), LISTEN_PORT);
+            sendSocket.send(requestPacket);
+        } catch (UnknownHostException e) {
+            System.err.println("UnknownHostException");
+            System.exit(1);
+        } catch (SocketException e) {
+            System.err.println("SocketException");
+            System.exit(1);
+        } catch (IOException e) {
+            System.err.println("IOException");
+            System.exit(1);
+        }
+    }
+    
+    public static InetAddress getMyAddr(String intf) {
         try {
             NetworkInterface networkInterface;
             // Try to find target interface
@@ -80,6 +108,8 @@ public class PowerClient {
             System.err.println("Socket exception " + e.getMessage());
             System.exit(1);
         }
+        System.err.println("Unable to get address!");
+        System.exit(1);
         return null;
     }
 }
