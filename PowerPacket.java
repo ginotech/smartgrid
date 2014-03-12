@@ -9,16 +9,16 @@ public class PowerPacket{
     
     private final DatagramPacket packet;
     
-    private static final int addrSize = 4;      // Client address size in bytes
-    private static final int authSize = 4;      // Client power auth size in bytes. (MUST BE 4)
+    private static final int ADDR_SIZE = 4;      // Client address size in bytes (IPv4 address is 4 bytes)
+    private static final int AUTH_SIZE = 4;      // Client power auth size in bytes. (MUST BE 4)
                                                 // (4 bytes here gives a max value of 2^31 - 1 since 'int' is signed)
-    private static final int packetSize = 1472; // Packet size in bytes (over 1472 will fragment)
-    private static final int portNum = 1234;    // Port number
+    private static final int PKT_SIZE = 1472; // Packet size in bytes (over 1472 will fragment)
+    private static final int PORT = 1234;    // Port number
     
     // Constructor (receive)
     public PowerPacket() {
-        byte[] buf = new byte[packetSize];
-        packet = new DatagramPacket(buf, packetSize);
+        byte[] buf = new byte[PKT_SIZE];
+        packet = new DatagramPacket(buf, PKT_SIZE);
     }
     
     // Constructor (send)
@@ -26,11 +26,11 @@ public class PowerPacket{
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
         final int numClients = clientAuthMap.size();
-        if (numClients < 0 || numClients * addrSize * authSize > packetSize) {
+        if (numClients < 0 || numClients * ADDR_SIZE * AUTH_SIZE > PKT_SIZE) {
             throw new IllegalArgumentException(numClients + " is an invalid number of clients");
         }
         // Build the packet. Begin with a start byte of 0xFF
-	ByteBuffer packetData = ByteBuffer.allocate(packetSize);
+	ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
         packetData.put((byte) 0xFF);
         for (Map.Entry<InetAddress, Integer> entry : clientAuthMap.entrySet()) {
             // Copy client address to packet data buffer
@@ -48,7 +48,7 @@ public class PowerPacket{
         while (packetData.hasRemaining()) {
             packetData.put((byte) 0x55);   // ASCII 'U', also binary '01010101'
         }
-        packet = new DatagramPacket(packetData.array(), packetSize, destAddr, portNum);
+        packet = new DatagramPacket(packetData.array(), PKT_SIZE, destAddr, PORT);
     }
     
     public DatagramPacket getPacket() {
@@ -60,10 +60,10 @@ public class PowerPacket{
     }
     
     public int getLength() {
-        return packetSize;
+        return PKT_SIZE;
     }
     
     public int getPort() {
-        return portNum;
+        return PORT;
     }
 }
