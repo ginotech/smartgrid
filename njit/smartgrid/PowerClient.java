@@ -1,5 +1,4 @@
 package smartgrid;
-import smartgrid.PowerPacket;
 import java.net.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
