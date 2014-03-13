@@ -28,10 +28,6 @@ public class PowerServer {
         final String intf = args[0];
         myAddr = getMyAddr(intf);
         destAddr = getBroadcastAddr(intf);
-//        clientAuthMap.put(InetAddress.getByName("10.0.0.11"), 0x0123DEAD);
-//        clientAuthMap.put(InetAddress.getByName("10.0.0.12"), 0x0000AABB);
-//        clientAuthMap.put(InetAddress.getByName("10.0.0.13"), 0x01CCDDEE);
-//        clientAuthMap.put(InetAddress.getByName("10.0.0.14"), 0x000000FE);
         
         // Sends a grant packet every GRANT_FREQUENCY (ms) comprised of all
         // requests since last grand packet was sent

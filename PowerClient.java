@@ -17,7 +17,7 @@ public class PowerClient {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        if (args.length < 2) {
+        if (args.length < 3) {
             System.out.println("Usage: PowerClient <interface> <server address> <request size>");
             System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
             System.exit(0);
