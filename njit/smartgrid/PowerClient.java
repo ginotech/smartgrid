@@ -6,7 +6,8 @@ import java.sql.Time;
 import java.util.*;
 
 // IMPORTANT: need to run export _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true" or put in ~/.profile
-
+// TODO: Add random request generation
+// TODO: add tracking of requests
 
 public class PowerClient {
     
@@ -77,6 +78,7 @@ public class PowerClient {
     }
 
     public static void requestPower(String serverAddr, int powerRequested) {
+        System.out.println("Sending power request for " + powerRequested);
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(4);
             requestBuffer.putInt(powerRequested);

@@ -6,6 +6,7 @@ import java.sql.Time;
 import java.util.*;
 
 // TODO: Actually instantiate the PowerServer class and un-static everything for god's sake!
+// TODO: Consider converting PowerServer to abstract class and implementing each scheduler as an inherited class? maybe?
 public class PowerServer {
     
     static final int GRANT_FREQUENCY = 500;     // How often to send grant packets (milliseconds)
@@ -19,7 +20,6 @@ public class PowerServer {
     static InetAddress myAddr = null;
     static InetAddress destAddr = null;
     static int maxLoad;
-    static int currentLoad = 0;
     static int schedulerType = SCHEDULER_LIMIT; // Default
     static int quantum = 0;
     static Queue<PowerRequest> clientsActive;
@@ -52,7 +52,11 @@ public class PowerServer {
                         System.exit(0);
                     }
                     schedulerType = SCHEDULER_ROUNDROBIN;
-                    quantum = Integer.parseInt(args[4]);
+                    quantum = Integer.parseInt(args[3]);
+                    if (quantum < 1) {
+                        System.err.println("Quantum must be greater than 0!");
+                        System.exit(1);
+                    }
                     break;
                 default:
                     schedulerType = SCHEDULER_LIMIT;
@@ -117,20 +121,23 @@ public class PowerServer {
     public static boolean authorizeRequest(InetAddress clientAddr, int powerRequested) {
         if (powerRequested > 0) {
             PowerRequest clientRequest = new PowerRequest(clientAddr, powerRequested);
-            if (currentLoad < maxLoad) {    // Do we have at least one slot open?
-                clientsActive.add(clientRequest);
-                currentLoad++;                                  // Increment the number of active clients
+            if (schedulerType == SCHEDULER_ROUNDROBIN) {
+                clientRequest.setPowerGranted(quantum);
+            }
+            if (clientsActive.size() < maxLoad) {   // Do we have at least one slot open?
+                clientsActive.add(clientRequest);   // Add the request to the active queue
                 return true;
-            } else {  // If we're maxed out, add the requesting client to a list to be served later
+            } else {
                 switch (schedulerType) {
-                    case 0:
+                    case SCHEDULER_LIMIT:
+                        // Throw away rejected request
                         return false;
-                    case 1:
-                        break;
-                    case 2:
-                        break;
+                    case SCHEDULER_FCFS: case SCHEDULER_ROUNDROBIN:
+                        // Add rejected request to "waiting" queue to be granted later
+                        clientsWaiting.add(clientRequest);
+                        return true;
                     default:
-                        break;
+                        return false;
                 }
             }
         }
@@ -142,13 +149,34 @@ public class PowerServer {
         for (Iterator<PowerRequest> i = clientsActive.iterator(); i.hasNext();) {
             // If authorized power amount is zero, remove the entry from the map
             PowerRequest entry = i.next();
-            int powerRequested = entry.getPowerRequested();
-            if (powerRequested == 0) {
+            int newPowerRequested = entry.getPowerRequested() - 1;
+            if (newPowerRequested == 0) {
                 i.remove();
-                currentLoad--;
             } else {
-                entry.setPowerRequested(powerRequested - 1);
+                entry.setPowerRequested(newPowerRequested);
+                if (schedulerType == SCHEDULER_ROUNDROBIN) {
+                    int newPowerGranted = entry.getPowerGranted() - 1;
+                    if (newPowerGranted == 0) {         // If we've hit the quantum limit (haha)
+                        entry.setPowerGranted(quantum); // then reset the quantum
+                        clientsWaiting.add(entry);      // and put the request back in the waiting queue
+                        i.remove();
+                    } else {
+                        entry.setPowerGranted(newPowerGranted);
+                    }
+                }
             }
+        }
+        switch (schedulerType) {
+            case SCHEDULER_LIMIT:
+                break;
+            case SCHEDULER_FCFS: case SCHEDULER_ROUNDROBIN:
+                // If we have room, move requests to active queue
+                while (!(clientsWaiting.isEmpty()) && (clientsActive.size() < maxLoad)) {
+                    clientsActive.add(clientsWaiting.remove());
+                }
+                break;
+            default:
+                break;
         }
     }
     
@@ -163,7 +191,7 @@ public class PowerServer {
             PowerPacket packet = new PowerPacket(destAddr, clientsActive);
             sendSocket.send(packet.getPacket());
             printTimestamp();
-            System.out.println("Sent grant packet. System load: " + currentLoad + "/" + maxLoad);
+            System.out.println("Sent grant packet. System load: " + clientsActive.size() + "/" + maxLoad);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
