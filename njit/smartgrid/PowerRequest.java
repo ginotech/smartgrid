@@ -1,4 +1,4 @@
-package smartgrid;
+package njit.smartgrid;
 
 import java.net.InetAddress;
 
