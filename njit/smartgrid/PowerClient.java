@@ -2,6 +2,7 @@ package smartgrid;
 import java.net.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.sql.Time;
 import java.util.*;
 
 // IMPORTANT: need to run export _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true" or put in ~/.profile
@@ -55,6 +56,8 @@ public class PowerClient {
                 }
                 if (clientAuthMap.containsKey(myAddr)) {
                     int authValue = clientAuthMap.get(myAddr);
+                    Time time = new Time(System.currentTimeMillis());
+                    System.out.print("[" + time.toString() + "] ");
                     System.out.format("Received authorization for 0x%08X (%d)\n", authValue, authValue);
                     if (authValue == 0) {
                         System.exit(0);

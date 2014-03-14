@@ -22,22 +22,22 @@ public class PowerPacket{
     }
     
     // Constructor (send)
-    public PowerPacket(InetAddress destAddr, Map<InetAddress, Integer> clientAuthMap) throws UnknownHostException {
+    public PowerPacket(InetAddress destAddr, Queue<PowerRequest> clientsActive) throws UnknownHostException {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
-        final int numClients = clientAuthMap.size();
+        final int numClients = clientsActive.size();
         if (numClients < 0 || numClients * ADDR_SIZE * AUTH_SIZE > PKT_SIZE) {
             throw new IllegalArgumentException(numClients + " is an invalid number of clients");
         }
         // Build the packet. Begin with a start byte of 0xFF
 	ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
         packetData.put((byte) 0xFF);
-        for (Map.Entry<InetAddress, Integer> entry : clientAuthMap.entrySet()) {
+        for (PowerRequest entry : clientsActive) {
             // Copy client address to packet data buffer
-            InetAddress clientAddr = entry.getKey();
+            InetAddress clientAddr = entry.getAddress();
             packetData.put(clientAddr.getAddress());            
             // Copy authorization value to packet data buffer
-            packetData.putInt(entry.getValue());
+            packetData.putInt(entry.getPowerRequested());
         }
         // Write four boundary bytes so we know where the real data stops
 	// TODO: need to check for size limit here
