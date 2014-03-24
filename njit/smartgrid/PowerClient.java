@@ -10,8 +10,9 @@ import java.util.*;
 // TODO: add tracking of requests
 
 public class PowerClient {
-    
-    static final int LISTEN_PORT = 1234;
+
+    static final int SERVER_PORT = 1234;
+    static final int CLIENT_PORT = 1235;
     static InetAddress myAddr;
 
     /**
@@ -19,12 +20,14 @@ public class PowerClient {
      */
     public static void main(String[] args) throws IOException {
         if (args.length < 3) {
-            System.out.println("Usage: PowerClient <interface> <server address> <request size>");
-            System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
+            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <request size>");
+            if (System.getProperty("os.name").contains("Linux")) {
+                System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
+            }
             System.exit(0);
         }
-        myAddr = getMyAddr(args[0]);
-        final String serverAddr = args[1];
+        myAddr = InetAddress.getByName(args[0]);
+        final InetAddress serverAddr = InetAddress.getByName(args[1]);
         final int powerRequested = Integer.parseInt(args[2]);
         System.out.println("My address is " + myAddr.getHostAddress());
         requestPower(serverAddr, powerRequested);
@@ -32,7 +35,7 @@ public class PowerClient {
     }
     
     public static void listenForGrant() {
-        try (DatagramSocket receiveSocket = new DatagramSocket(LISTEN_PORT)) {
+        try (DatagramSocket receiveSocket = new DatagramSocket(CLIENT_PORT)) {
             while (true) {
                 PowerPacket packet = new PowerPacket();
                 receiveSocket.receive(packet.getPacket());
@@ -77,12 +80,12 @@ public class PowerClient {
         }
     }
 
-    public static void requestPower(String serverAddr, int powerRequested) {
+    public static void requestPower(InetAddress serverAddr, int powerRequested) {
         System.out.println("Sending power request for " + powerRequested);
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(4);
             requestBuffer.putInt(powerRequested);
-            DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), 4, InetAddress.getByName(serverAddr), LISTEN_PORT);
+            DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), 4, serverAddr, SERVER_PORT);
             sendSocket.send(requestPacket);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
@@ -94,31 +97,5 @@ public class PowerClient {
             System.err.println("IOException: " + e.getMessage());
             System.exit(1);
         }
-    }
-    
-    public static InetAddress getMyAddr(String intf) {
-        try {
-            NetworkInterface networkInterface;
-            // Try to find target interface
-            networkInterface = NetworkInterface.getByName(intf);
-            // If none is found, error out
-            if (networkInterface == null) {
-                System.err.println("Invalid network interface.");
-                System.exit(1);
-            }
-            // Iterate through the bound addresses and return the first real addr
-            for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
-                InetAddress myAddr = interfaceAddress.getAddress();
-                if (myAddr != null) {
-                    return myAddr;
-                }
-            }
-        } catch (SocketException e) {
-            System.err.println("Socket exception " + e.getMessage());
-            System.exit(1);
-        }
-        System.err.println("Unable to get address!");
-        System.exit(1);
-        return null;
     }
 }

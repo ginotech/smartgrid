@@ -1,4 +1,5 @@
 package njit.smartgrid;
+import java.io.BufferedReader;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.io.IOException;
@@ -10,7 +11,7 @@ import java.util.*;
 public class PowerServer {
     
     static final int GRANT_FREQUENCY = 500;     // How often to send grant packets (milliseconds)
-    static final int PORT = 1234;               // Port on which to listen for requests / destination port for grants
+    static final int SERVER_PORT = 1234;        // Port on which to listen for requests / destination port for grants
     static final int REQUEST_PACKET_LENGTH = 4; // Size of the request packet in bytes
 
     static final int SCHEDULER_LIMIT        = 0;
@@ -32,14 +33,21 @@ public class PowerServer {
      */
     public static void main(String[] args) throws IOException {
         if (args.length < 2) {
-            System.out.println("Usage: java smartgrid.PowerServer <interface> <capacity> [scheduler] [scheduler option]");
-            System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
+            System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <capacity> [scheduler] [scheduler option]");
+            if (System.getProperty("os.name").contains("Linux")) {
+                System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
+            }
             System.exit(0);
         }
-        final String intf = args[0];
-        maxLoad = Integer.parseInt(args[1]);
-        if (args.length >= 3) {
-            switch (args[2].toLowerCase()) {
+        myAddr = InetAddress.getByName(args[0]);
+        destAddr = InetAddress.getByName(args[1]);
+        if (myAddr == null || destAddr == null) {
+            System.err.println("Invalid server address or broadcast address.");
+            System.exit(1);
+        }
+        maxLoad = Integer.parseInt(args[2]);
+        if (args.length >= 4) {
+            switch (args[3].toLowerCase()) {
                 case "limit":
                     schedulerType = SCHEDULER_LIMIT;
                     break;
@@ -47,12 +55,12 @@ public class PowerServer {
                     schedulerType = SCHEDULER_FCFS;
                     break;
                 case "roundrobin": case "rr":
-                    if (args.length < 4) {
-                        System.out.println("To use the round-robin scheduler you must specify the quantum.");
+                    if (args.length < 5) {
+                        System.out.println("To use the round-robin scheduler you must specify the quantum (in # of packets.)");
                         System.exit(0);
                     }
                     schedulerType = SCHEDULER_ROUNDROBIN;
-                    quantum = Integer.parseInt(args[3]);
+                    quantum = Integer.parseInt(args[4]);
                     if (quantum < 1) {
                         System.err.println("Quantum must be greater than 0!");
                         System.exit(1);
@@ -63,8 +71,6 @@ public class PowerServer {
                     break;
             }
         }
-        myAddr = getMyAddr(intf);
-        destAddr = getBroadcastAddr(intf);
         System.out.println("Broadcasting to " + destAddr.getHostAddress());
         System.out.println("Capacity: " + maxLoad);
 
@@ -86,7 +92,7 @@ public class PowerServer {
     
     // Wait for an authorization request from a client
     public static void listenForRequest() {
-        try (DatagramSocket receiveSocket = new DatagramSocket(PORT)) {
+        try (DatagramSocket receiveSocket = new DatagramSocket(SERVER_PORT)) {
             while (true) {
                 byte[] packetDataArray = new byte[REQUEST_PACKET_LENGTH];
                 try {
@@ -202,56 +208,6 @@ public class PowerServer {
             System.err.println("IOException: " + e.getMessage());
             System.exit(1);
         }
-    }
-
-    public static InetAddress getMyAddr(String intf) {
-        try {
-            NetworkInterface networkInterface;
-            // Try to find target interface
-            networkInterface = NetworkInterface.getByName(intf);
-            // If none is found, error out
-            if (networkInterface == null) {
-                System.err.println("Invalid network interface.");
-                System.exit(1);
-            }
-            // Iterate through the bound addresses and return the first real addr
-            for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
-                InetAddress myAddr = interfaceAddress.getAddress();
-                if (myAddr != null) {
-                    return myAddr;
-                }
-            }
-        } catch (SocketException e) {
-            System.err.println(e.toString());
-            System.exit(1);
-        }
-        System.err.println("Unable to get address!");
-        System.exit(1);
-        return null;
-    }
-
-    public static InetAddress getBroadcastAddr(String intf) {
-        try {
-            NetworkInterface networkInterface;
-            // Try to find target interface
-            networkInterface = NetworkInterface.getByName(intf);
-            // If none is found, error out
-            if (networkInterface == null) {
-                System.err.println("Invalid network interface.");
-                System.exit(1);
-            }
-            // Iterate through the bound addresses and return the first broadcast addr
-            for (InterfaceAddress interfaceAddress : networkInterface.getInterfaceAddresses()) {
-                InetAddress broadcastAddr = interfaceAddress.getBroadcast();
-                if (broadcastAddr != null) {
-                    return broadcastAddr;
-                }
-            }
-        } catch (SocketException e) {
-            System.err.println("Socket exception " + e.getMessage());
-            System.exit(1);
-        }
-        return null;
     }
 
     private static void printTimestamp() {
