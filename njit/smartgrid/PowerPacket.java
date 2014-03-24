@@ -13,7 +13,7 @@ public class PowerPacket{
     private static final int AUTH_SIZE = 4;      // Client power auth size in bytes. (MUST BE 4)
                                                 // (4 bytes here gives a max value of 2^31 - 1 since 'int' is signed)
     private static final int PKT_SIZE = 1472; // Packet size in bytes (over 1472 will fragment)
-    private static final int CLIENT_PORT = 1234;    // Port number
+    private static final int CLIENT_PORT = 1235;    // Port number
     
     // Constructor (receive)
     public PowerPacket() {
