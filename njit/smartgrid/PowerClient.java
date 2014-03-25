@@ -37,7 +37,7 @@ public class PowerClient {
     public static void listenForGrant() {
         try (DatagramSocket receiveSocket = new DatagramSocket(CLIENT_PORT)) {
             while (true) {
-                PowerPacket packet = new PowerPacket();
+                PowerGrantPacket packet = new PowerGrantPacket();
                 receiveSocket.receive(packet.getPacket());
                 ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                 // Build the packet back into a map of address and auth values

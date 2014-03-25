@@ -1,5 +1,4 @@
 package njit.smartgrid;
-import java.io.BufferedReader;
 import java.net.*;
 import java.nio.ByteBuffer;
 import java.io.IOException;
@@ -32,7 +31,7 @@ public class PowerServer {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        if (args.length < 2) {
+        if (args.length < 3) {
             System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <capacity> [scheduler] [scheduler option]");
             if (System.getProperty("os.name").contains("Linux")) {
                 System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
@@ -194,7 +193,7 @@ public class PowerServer {
         }
         // Create new output socket with dynamically assigned port
         try (DatagramSocket sendSocket = new DatagramSocket()) {
-            PowerPacket packet = new PowerPacket(destAddr, clientsActive);
+            PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientsActive);
             sendSocket.send(packet.getPacket());
             printTimestamp();
             System.out.println("Sent grant packet. System load: " + clientsActive.size() + "/" + maxLoad);

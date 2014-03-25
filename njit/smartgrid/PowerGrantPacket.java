@@ -4,7 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 //
 // Wrapper class for DataPacket
-public class PowerPacket{
+public class PowerGrantPacket {
     // Number of power packets remaining is 4 bytes
     
     private final DatagramPacket packet;
@@ -16,13 +16,13 @@ public class PowerPacket{
     private static final int CLIENT_PORT = 1235;    // Port number
     
     // Constructor (receive)
-    public PowerPacket() {
+    public PowerGrantPacket() {
         byte[] buf = new byte[PKT_SIZE];
         packet = new DatagramPacket(buf, PKT_SIZE);
     }
     
     // Constructor (send)
-    public PowerPacket(InetAddress destAddr, Queue<PowerRequest> clientsActive) throws UnknownHostException {
+    public PowerGrantPacket(InetAddress destAddr, Queue<PowerRequest> clientsActive) throws UnknownHostException {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
         final int numClients = clientsActive.size();
@@ -30,7 +30,7 @@ public class PowerPacket{
             throw new IllegalArgumentException(numClients + " is an invalid number of clients");
         }
         // Build the packet. Begin with a start byte of 0xFF
-	ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
+	    ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
         packetData.put((byte) 0xFF);
         for (PowerRequest entry : clientsActive) {
             // Copy client address to packet data buffer
@@ -40,7 +40,7 @@ public class PowerPacket{
             packetData.putInt(entry.getPowerRequested());
         }
         // Write four boundary bytes so we know where the real data stops
-	// TODO: need to check for size limit here
+	    // TODO: need to check for size limit here
         for (int i = 0; i < 4; i++) {
             packetData.put((byte) 0xFF);
         }
