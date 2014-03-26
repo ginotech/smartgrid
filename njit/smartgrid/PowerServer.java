@@ -11,7 +11,7 @@ public class PowerServer {
     
     static final int GRANT_FREQUENCY = 500;     // How often to send grant packets (milliseconds)
     static final int SERVER_PORT = 1234;        // Port on which to listen for requests / destination port for grants
-    static final int REQUEST_PACKET_LENGTH = 4; // Size of the request packet in bytes
+    static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
 
     static final int SCHEDULER_LIMIT        = 0;
     static final int SCHEDULER_FCFS         = 1;
@@ -24,6 +24,7 @@ public class PowerServer {
     static int quantum = 0;
     static Queue<PowerRequest> clientsActive;
     static Queue<PowerRequest> clientsWaiting;
+    static PowerLog log;
 
     // ^ Should this be here, or in main()?
 
@@ -73,6 +74,8 @@ public class PowerServer {
         System.out.println("Broadcasting to " + destAddr.getHostAddress());
         System.out.println("Capacity: " + maxLoad);
 
+        log = new PowerLog(true);
+
         clientsActive = new LinkedList<PowerRequest>();
         clientsWaiting = new LinkedList<PowerRequest>();
         
@@ -102,14 +105,22 @@ public class PowerServer {
                     if (clientAddr.equals(myAddr)) {
                         continue;
                     }
-                    // TODO: Validate the request packet before doing anything with it!
-                    int powerRequested = ByteBuffer.wrap(packet.getData()).getInt();
-                    printTimestamp();
-                    System.out.format("Request from %s for %d: ", clientAddr, powerRequested);
-                    if (authorizeRequest(clientAddr, powerRequested)) {
-                        System.out.println("Authorized.");
-                    } else {
-                        System.out.println("Rejected.");
+                    if (packet.getLength() == REQUEST_PACKET_LENGTH) {
+                        // TODO: Validate the request packet before doing anything with it!
+                        ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
+                        long clientTime = packetData.getLong();
+                        int powerRequested = packetData.getInt();
+                        printTimestamp();
+                        System.out.format("Request from %s for %d: ", clientAddr.toString(), powerRequested);
+                        if (authorizeRequest(clientAddr, powerRequested)) {
+                            System.out.println("Authorized.");
+                        } else {
+                            System.out.println("Rejected.");
+                        }
+                        log.logRequest(clientAddr, 0, powerRequested, clientTime);
+                    }
+                    else {
+                        System.err.println("Invalid request packet of length " + packet.getLength());
                     }
                 } catch (IOException e) {
                     System.err.println("IOException: " + e.getMessage());
@@ -128,6 +139,8 @@ public class PowerServer {
             PowerRequest clientRequest = new PowerRequest(clientAddr, powerRequested);
             if (schedulerType == SCHEDULER_ROUNDROBIN) {
                 clientRequest.setPowerGranted(quantum);
+            } else {
+                clientRequest.setPowerGranted(powerRequested);
             }
             if (clientsActive.size() < maxLoad) {   // Do we have at least one slot open?
                 clientsActive.add(clientRequest);   // Add the request to the active queue
@@ -149,12 +162,14 @@ public class PowerServer {
         return false;
     }
 
-    // Decrement authorization amounts and remove if zero
+    // Decrement authorization amounts and remove if zero (also writes logfile)
     public static void updateAuthQueue() {
         for (Iterator<PowerRequest> i = clientsActive.iterator(); i.hasNext();) {
-            // If authorized power amount is zero, remove the entry from the map
             PowerRequest entry = i.next();
+            // Write grants to log
+            log.logGrant(entry.getAddress(), entry.getPowerGranted(), 0);
             int newPowerRequested = entry.getPowerRequested() - 1;
+            // If authorized power amount is zero, remove the entry from the map
             if (newPowerRequested == 0) {
                 i.remove();
             } else {
@@ -168,6 +183,8 @@ public class PowerServer {
                     } else {
                         entry.setPowerGranted(newPowerGranted);
                     }
+                } else {
+                    entry.setPowerGranted(entry.getPowerRequested());
                 }
             }
         }

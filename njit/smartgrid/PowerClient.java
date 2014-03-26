@@ -13,7 +13,9 @@ public class PowerClient {
 
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
+    static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
     static InetAddress myAddr;
+    static PowerLog log;
 
     /**
      * @param args the command line arguments
@@ -30,6 +32,7 @@ public class PowerClient {
         final InetAddress serverAddr = InetAddress.getByName(args[1]);
         final int powerRequested = Integer.parseInt(args[2]);
         System.out.println("My address is " + myAddr.getHostAddress());
+        log = new PowerLog(false);
         requestPower(serverAddr, powerRequested);
         listenForGrant();
     }
@@ -42,7 +45,7 @@ public class PowerClient {
                 ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                 // Build the packet back into a map of address and auth values
                 Map<InetAddress, Integer> clientAuthMap = new HashMap<>();
-                packetData.get();   // Need to throw away first 0xFF byte
+                long serverTime = packetData.getLong();
                 while (packetData.remaining() >= 8) {
                     // Get the address
                     byte[] addrArray = new byte[4];
@@ -63,6 +66,7 @@ public class PowerClient {
                     Time time = new Time(System.currentTimeMillis());
                     System.out.print("[" + time.toString() + "] ");
                     System.out.format("Received authorization for 0x%08X (%d)\n", authValue, authValue);
+                    log.logGrant(myAddr, authValue, serverTime);
                     if (authValue == 0) {
                         System.exit(0);
                     }
@@ -80,13 +84,16 @@ public class PowerClient {
         }
     }
 
+    // Send a request packet to the server that contains a timestamp and the amount of power requested
     public static void requestPower(InetAddress serverAddr, int powerRequested) {
         System.out.println("Sending power request for " + powerRequested);
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
-            ByteBuffer requestBuffer = ByteBuffer.allocate(4);
-            requestBuffer.putInt(powerRequested);
-            DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), 4, serverAddr, SERVER_PORT);
+            ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
+            requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
+            requestBuffer.putInt(powerRequested);               // Power requested
+            DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), REQUEST_PACKET_LENGTH, serverAddr, SERVER_PORT);
             sendSocket.send(requestPacket);
+            log.logRequest(myAddr, 0, powerRequested, 0);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);

@@ -1,6 +1,7 @@
 package njit.smartgrid;
 import java.net.*;
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
 import java.util.*;
 //
 // Wrapper class for DataPacket
@@ -9,11 +10,10 @@ public class PowerGrantPacket {
     
     private final DatagramPacket packet;
     
-    private static final int ADDR_SIZE = 4;      // Client address size in bytes (IPv4 address is 4 bytes)
-    private static final int AUTH_SIZE = 4;      // Client power auth size in bytes. (MUST BE 4)
-                                                // (4 bytes here gives a max value of 2^31 - 1 since 'int' is signed)
-    private static final int PKT_SIZE = 1472; // Packet size in bytes (over 1472 will fragment)
-    private static final int CLIENT_PORT = 1235;    // Port number
+    private static final int SEGMENT_SIZE = 8; // Size of data segment for each client in bytes
+    private static final int TIMESTAMP_SIZE = 8;
+    private static final int PKT_SIZE = 1472;   // Total packet size in bytes (over 1472 will fragment)
+    private static final int CLIENT_PORT = 1235;
     
     // Constructor (receive)
     public PowerGrantPacket() {
@@ -26,12 +26,12 @@ public class PowerGrantPacket {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
         final int numClients = clientsActive.size();
-        if (numClients < 0 || numClients * ADDR_SIZE * AUTH_SIZE > PKT_SIZE) {
+        if (numClients < 0 || numClients * SEGMENT_SIZE  + TIMESTAMP_SIZE > PKT_SIZE) {
             throw new IllegalArgumentException(numClients + " is an invalid number of clients");
         }
         // Build the packet. Begin with a start byte of 0xFF
 	    ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
-        packetData.put((byte) 0xFF);
+        packetData.putLong(System.currentTimeMillis());
         for (PowerRequest entry : clientsActive) {
             // Copy client address to packet data buffer
             InetAddress clientAddr = entry.getAddress();
