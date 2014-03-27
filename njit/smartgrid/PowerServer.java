@@ -13,15 +13,18 @@ public class PowerServer {
     static final int SERVER_PORT = 1234;        // Port on which to listen for requests / destination port for grants
     static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
 
-    static final int SCHEDULER_LIMIT        = 0;
-    static final int SCHEDULER_FCFS         = 1;
-    static final int SCHEDULER_ROUNDROBIN   = 2;
+    static final int SCHEDULER_LIMIT            = 0;
+    static final int SCHEDULER_FCFS             = 1;
+    static final int SCHEDULER_ROUNDROBIN       = 2;
+    static final int SCHEDULER_ROUNDROBIN_FIXED = 3;
 
     static InetAddress myAddr = null;
     static InetAddress destAddr = null;
     static int maxLoad;
     static int schedulerType = SCHEDULER_LIMIT; // Default
     static int quantum = 0;
+    static Queue<PowerRequest> clientsFixed;
+    static int fixedIndex = 0;
     static Queue<PowerRequest> clientsActive;
     static Queue<PowerRequest> clientsWaiting;
     static PowerLog log;
@@ -66,6 +69,19 @@ public class PowerServer {
                         System.exit(1);
                     }
                     break;
+                case "rrf": case "roundrobinfixed":
+                    System.out.println("Fixed-order round robin has not been implemented. Exiting.");
+                    System.exit(1);
+                    if (args.length < 5) {
+                        System.out.println("To use the fixed position round-robin scheduler you must specify the quantum (in # of packets.)");
+                        System.exit(0);
+                    }
+                    schedulerType = SCHEDULER_ROUNDROBIN_FIXED;
+                    quantum = Integer.parseInt(args[4]);
+                    if (quantum < 1) {
+                        System.err.println("Quantum must be greater than 0!");
+                        System.exit(1);
+                    }
                 default:
                     schedulerType = SCHEDULER_LIMIT;
                     break;
@@ -75,18 +91,28 @@ public class PowerServer {
         System.out.println("Capacity: " + maxLoad);
 
         log = new PowerLog(true);
-
-        clientsActive = new LinkedList<PowerRequest>();
-        clientsWaiting = new LinkedList<PowerRequest>();
         
+        if (schedulerType == SCHEDULER_ROUNDROBIN_FIXED) {
+            clientsFixed = new LinkedList<PowerRequest>();
+        } else {
+            clientsActive = new LinkedList<PowerRequest>();
+            clientsWaiting = new LinkedList<PowerRequest>();
+        }
+        
+      
         // Sends a grant packet every GRANT_FREQUENCY (ms) comprised of all
         // requests since last grand packet was sent
         // This should execute in a background thread and not affect listenForRequest()
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
-                sendGrantPacket();  // Send grant broadcast
-                updateAuthQueue();    // Decrement auth quantities and remove if no longer active
+                if (schedulerType == SCHEDULER_ROUNDROBIN_FIXED) {
+                    sendGrantPacketFixed();
+                    updateAuthQueueFixed();
+                } else {
+                    sendGrantPacket();  // Send grant broadcast
+                    updateAuthQueue();  // Decrement auth quantities and remove if no longer active
+                }
             }
         }, GRANT_FREQUENCY, GRANT_FREQUENCY);
         listenForRequest();
@@ -112,7 +138,13 @@ public class PowerServer {
                         int powerRequested = packetData.getInt();
                         printTimestamp();
                         System.out.format("Request from %s for %d: ", clientAddr.toString(), powerRequested);
-                        if (authorizeRequest(clientAddr, powerRequested)) {
+                        boolean result;
+                        if (schedulerType == SCHEDULER_ROUNDROBIN_FIXED) {
+                            result = authorizeRequestFixed(clientAddr, powerRequested);
+                        } else {
+                            result = authorizeRequest(clientAddr, powerRequested);
+                        }
+                        if (result) {
                             System.out.println("Authorized.");
                         } else {
                             System.out.println("Rejected.");
@@ -161,6 +193,19 @@ public class PowerServer {
         }
         return false;
     }
+    
+    public static boolean authorizeRequestFixed(InetAddress clientAddr, int powerRequested) {
+        if (powerRequested > 0) {
+            PowerRequest clientRequest = new PowerRequest(clientAddr, powerRequested);
+            if (clientsFixed.size() < maxLoad) {   // Do we have at least one slot open?
+                clientRequest.setPowerGranted(quantum);
+            } else {
+                clientRequest.setPowerGranted(0);
+            }
+            clientsFixed.add(clientRequest);   // Add the request to the active queue
+        }
+        return true;
+    }
 
     // Decrement authorization amounts and remove if zero (also writes logfile)
     public static void updateAuthQueue() {
@@ -205,8 +250,37 @@ public class PowerServer {
     // Send a broadcast packet with client addresses and authorization amounts
     public static void sendGrantPacket() {
         // If there are no grants to be sent, don't do anything
-        if (clientsActive.isEmpty()) {
+        if (clientsFixed.isEmpty()) {
             return;
+        }
+        
+        // Create new output socket with dynamically assigned port
+        try (DatagramSocket sendSocket = new DatagramSocket()) {
+            PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientsFixed);
+            sendSocket.send(packet.getPacket());
+            printTimestamp();
+            System.out.println("Sent grant packet. System load: " + clientsFixed.size() + "/" + maxLoad);
+        } catch (UnknownHostException e) {
+            System.err.println("UnknownHostException: " + e.getMessage());
+            System.exit(1);
+        } catch (SocketException e) {
+            System.err.println("SocketException: " + e.getMessage());
+            System.exit(1);
+        } catch (IOException e) {
+            System.err.println("IOException: " + e.getMessage());
+            System.exit(1);
+        }
+    }
+    
+    public static void sendGrantPacketFixed() {
+
+        // If there are no grants to be sent, don't do anything
+        if (clientsFixed.isEmpty()) {
+            return;
+        }
+        Queue<PowerRequest> clientsFixedActive = new LinkedList<>();
+        while (clientsFixedActive.size() < maxLoad) {
+            
         }
         // Create new output socket with dynamically assigned port
         try (DatagramSocket sendSocket = new DatagramSocket()) {
