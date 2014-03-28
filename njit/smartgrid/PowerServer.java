@@ -271,7 +271,11 @@ public class PowerServer {
             System.exit(1);
         }
     }
-    
+
+    public static void updateAuthQueueFixed() {
+        return;
+    }
+
     public static void sendGrantPacketFixed() {
 
         // If there are no grants to be sent, don't do anything
