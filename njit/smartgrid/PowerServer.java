@@ -250,16 +250,16 @@ public class PowerServer {
     // Send a broadcast packet with client addresses and authorization amounts
     public static void sendGrantPacket() {
         // If there are no grants to be sent, don't do anything
-        if (clientsFixed.isEmpty()) {
+        if (clientsActive.isEmpty()) {
             return;
         }
         
         // Create new output socket with dynamically assigned port
         try (DatagramSocket sendSocket = new DatagramSocket()) {
-            PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientsFixed);
+            PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientsActive);
             sendSocket.send(packet.getPacket());
             printTimestamp();
-            System.out.println("Sent grant packet. System load: " + clientsFixed.size() + "/" + maxLoad);
+            System.out.println("Sent grant packet. System load: " + clientsActive.size() + "/" + maxLoad);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
