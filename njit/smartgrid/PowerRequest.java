@@ -33,4 +33,7 @@ public class PowerRequest {
     public void setPowerGranted(int newPower) {
         this.powerGranted = newPower;
     }
+
+    public void decrementPowerGranted() { this.powerGranted--; }
+
 }
