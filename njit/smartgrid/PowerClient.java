@@ -12,13 +12,13 @@ import java.util.*;
 public class PowerClient {
 
     static final boolean RASPBERRY_PI = false;
-
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
-    static InetAddress myAddr;
-    static int powerRequested = 0;
-    static PowerLog log;
+
+    private InetAddress myAddr;
+    private int powerRequested = 0;
+    private PowerLog log;
 
     /**
      * @param args the command line arguments
@@ -31,16 +31,24 @@ public class PowerClient {
             }
             System.exit(0);
         }
-        myAddr = InetAddress.getByName(args[0]);
+        final InetAddress myAddr = InetAddress.getByName(args[0]);
         final InetAddress serverAddr = InetAddress.getByName(args[1]);
-        powerRequested = Integer.parseInt(args[2]);
+        final int powerRequested = Integer.parseInt(args[2]);
         System.out.println("My address is " + myAddr.getHostAddress());
-        log = new PowerLog(false);
-        requestPower(serverAddr);
-        listenForGrant();
+
+        PowerClient powerClient = new PowerClient(myAddr, powerRequested);
+        powerClient.requestPower(serverAddr);
+        powerClient.listenForGrant();
     }
-    
-    public static void listenForGrant() {
+
+    public PowerClient(InetAddress myAddr, int powerRequested) {
+        this.myAddr = myAddr;
+        this.powerRequested = powerRequested;
+
+        this.log = new PowerLog(false);
+    }
+
+    public void listenForGrant() {
         try (DatagramSocket receiveSocket = new DatagramSocket(CLIENT_PORT)) {
             while (true) {
                 PowerGrantPacket packet = new PowerGrantPacket();
@@ -100,8 +108,8 @@ public class PowerClient {
     }
 
     // Send a request packet to the server that contains a timestamp and the amount of power requested
-    public static void requestPower(InetAddress serverAddr) {
-        System.out.println("Sending power request for " + powerRequested);
+    public void requestPower(InetAddress serverAddr) {
+        System.out.println("Sending power request for " + powerRequested + " to " + serverAddr.getHostAddress());
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp

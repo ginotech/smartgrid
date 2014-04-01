@@ -26,12 +26,12 @@ public class PowerRequest {
         return powerGranted;
     }
 
-    public void setPowerRequested(int newPower) {
-        this.powerRequested = newPower;
+    public void setPowerRequested(int powerRequested) {
+        this.powerRequested = powerRequested;
     }
 
-    public void setPowerGranted(int newPower) {
-        this.powerGranted = newPower;
+    public void setPowerGranted(int powerGranted) {
+        this.powerGranted = powerGranted;
     }
 
     public void decrementPowerGranted() { this.powerGranted--; }
