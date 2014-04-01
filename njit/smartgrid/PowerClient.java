@@ -11,10 +11,13 @@ import java.util.*;
 
 public class PowerClient {
 
+    static final boolean RASPBERRY_PI = false;
+
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
     static InetAddress myAddr;
+    static int powerRequested = 0;
     static PowerLog log;
 
     /**
@@ -30,10 +33,10 @@ public class PowerClient {
         }
         myAddr = InetAddress.getByName(args[0]);
         final InetAddress serverAddr = InetAddress.getByName(args[1]);
-        final int powerRequested = Integer.parseInt(args[2]);
+        powerRequested = Integer.parseInt(args[2]);
         System.out.println("My address is " + myAddr.getHostAddress());
         log = new PowerLog(false);
-        requestPower(serverAddr, powerRequested);
+        requestPower(serverAddr);
         listenForGrant();
     }
     
@@ -63,12 +66,24 @@ public class PowerClient {
                 }
                 if (clientAuthMap.containsKey(myAddr)) {
                     int authValue = clientAuthMap.get(myAddr);
-                    Time time = new Time(System.currentTimeMillis());
-                    System.out.print("[" + time.toString() + "] ");
-                    System.out.format("Received authorization for 0x%08X (%d)\n", authValue, authValue);
-                    log.logGrant(myAddr, authValue, serverTime);
-                    if (authValue == 0) {
-                        System.exit(0);
+                    if (authValue > 0) {
+                        Time time = new Time(System.currentTimeMillis());
+                        System.out.print("[" + time.toString() + "] ");
+                        System.out.format("Received authorization for 0x%08X (%d)\n", authValue, authValue);
+                        powerRequested--;
+                        if (RASPBERRY_PI) {
+                            Process p = Runtime.getRuntime().exec("gpio mode 11 output");
+                            Process q = Runtime.getRuntime().exec("gpio write 11 1");
+                        }
+                        log.logGrant(myAddr, authValue, serverTime);
+                    } else {
+                        if (RASPBERRY_PI) {
+                            Process r = Runtime.getRuntime().exec("gpio write 11 0");
+                        }
+                        if (powerRequested == 0) {
+                            System.out.println("Request satisfied. Exiting.");
+                            System.exit(0);
+                        }
                     }
                 }
             }
@@ -85,7 +100,7 @@ public class PowerClient {
     }
 
     // Send a request packet to the server that contains a timestamp and the amount of power requested
-    public static void requestPower(InetAddress serverAddr, int powerRequested) {
+    public static void requestPower(InetAddress serverAddr) {
         System.out.println("Sending power request for " + powerRequested);
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
