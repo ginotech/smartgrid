@@ -22,7 +22,7 @@ public class PowerGrantPacket {
     }
     
     // Constructor (send)
-    public PowerGrantPacket(InetAddress destAddr, Queue<PowerRequest> clientsActive) throws UnknownHostException {
+    public PowerGrantPacket(InetAddress destAddr, List<PowerRequest> clientsActive) throws UnknownHostException {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
         final int numClients = clientsActive.size();
@@ -37,7 +37,7 @@ public class PowerGrantPacket {
             InetAddress clientAddr = entry.getAddress();
             packetData.put(clientAddr.getAddress());            
             // Copy authorization value to packet data buffer
-            packetData.putInt(entry.getPowerRequested());
+            packetData.putInt(entry.getPowerGranted());
         }
         // Write four boundary bytes so we know where the real data stops
 	    // TODO: need to check for size limit here
