@@ -5,25 +5,21 @@ import java.io.IOException;
 import java.sql.Time;
 import java.util.*;
 
-// TODO: Actually instantiate the PowerServer class and un-static everything for god's sake!
-// TODO: Consider converting PowerServer to abstract class and implementing each scheduler as an inherited class? maybe?
 public class PowerServer {
     
-    static final int GRANT_FREQUENCY = 500;     // How often to send grant packets (milliseconds)
+    static final int GRANT_FREQUENCY = 1000;     // How often to send grant packets (milliseconds)
     static final int SERVER_PORT = 1234;        // Port on which to listen for requests / destination port for grants
     static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
     static final int DEFAULT_QUANTUM = 10;
 
-    static InetAddress myAddr = null;
-    static InetAddress destAddr = null;
-    static int currentLoad = 0;
-    static int maxLoad;
-    static int quantum = DEFAULT_QUANTUM;
-    static List<PowerRequest> clientList;
-    static int priorityClientIndex = 0;
-    static PowerLog log;
-
-    // ^ Should this be here, or in main()?
+    private InetAddress myAddr = null;
+    private InetAddress destAddr = null;
+    private int currentLoad = 0;
+    private int maxLoad;
+    private int quantum;
+    private List<PowerRequest> clientList;
+    private int priorityClientIndex = 0;
+    private PowerLog log;
 
     /**
      * @param args the command line arguments
@@ -36,13 +32,14 @@ public class PowerServer {
             }
             System.exit(0);
         }
-        myAddr = InetAddress.getByName(args[0]);
-        destAddr = InetAddress.getByName(args[1]);
+        final InetAddress myAddr = InetAddress.getByName(args[0]);
+        final InetAddress destAddr = InetAddress.getByName(args[1]);
         if (myAddr == null || destAddr == null) {
             System.err.println("Invalid server address or broadcast address.");
             System.exit(1);
         }
-        maxLoad = Integer.parseInt(args[2]);
+        final int maxLoad = Integer.parseInt(args[2]);
+        int quantum = DEFAULT_QUANTUM;
         if (args.length >= 4) {
             quantum = Integer.parseInt(args[3]);
             if (quantum < 1) {
@@ -54,12 +51,24 @@ public class PowerServer {
         System.out.println("Capacity: " + maxLoad);
         System.out.println("Quantum " + quantum);
 
-        log = new PowerLog(true);
-        clientList = new LinkedList<PowerRequest>();
+        PowerServer powerServer = new PowerServer(myAddr, destAddr, maxLoad, quantum);
+        powerServer.start();
+    }
 
+    public PowerServer(InetAddress myAddr, InetAddress destAddr, int maxLoad, int quantum) {
+        this.myAddr = myAddr;
+        this.destAddr = destAddr;
+        this.maxLoad = maxLoad;
+        this.quantum = quantum;
+
+        this.log = new PowerLog(true);
+        this.clientList = new LinkedList<PowerRequest>();
+    }
+
+
+    public void start() {
         // Sends a grant packet every GRANT_FREQUENCY (ms) comprised of all
         // requests since last grand packet was sent
-        // This should execute in a background thread and not affect listenForRequest()
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
@@ -72,9 +81,9 @@ public class PowerServer {
         }, GRANT_FREQUENCY, GRANT_FREQUENCY);
         listenForRequest();
     }
-    
+
     // Wait for an authorization request from a client
-    public static void listenForRequest() {
+    public void listenForRequest() {
         try (DatagramSocket receiveSocket = new DatagramSocket(SERVER_PORT)) {
             while (true) {
                 byte[] packetDataArray = new byte[REQUEST_PACKET_LENGTH];
@@ -115,7 +124,7 @@ public class PowerServer {
     }
     
     // Decide if we want to authorize a power request
-    public static boolean addRequest(InetAddress clientAddr, int powerRequested) {
+    private boolean addRequest(InetAddress clientAddr, int powerRequested) {
         if (powerRequested > 0) {
             PowerRequest clientRequest = new PowerRequest(clientAddr, powerRequested);
             clientList.add(clientRequest);   // Add the request to the queue
@@ -124,7 +133,7 @@ public class PowerServer {
         return false;
     }
 
-    public static void updateGrantAmount() {
+    private void updateGrantAmount() {
         ListIterator<PowerRequest> it = clientList.listIterator();
         while (it.hasNext()) {
             PowerRequest entry = it.next();
@@ -138,7 +147,7 @@ public class PowerServer {
     }
 
     // Decrement authorization amounts (also writes logfile)
-    public static void grantPower() {
+    public void grantPower() {
         // Start iterating through the client list, beginning with the current priority client
         ListIterator<PowerRequest> it  = clientList.listIterator(priorityClientIndex);
         int shiftClientIndex = 0;
@@ -152,6 +161,7 @@ public class PowerServer {
                         if (powerRequested <= quantum) {
                             entry.setPowerGranted(powerRequested);
                             entry.setPowerRequested(0);
+                            // If this grant completely satisfies a request, shift priority to next client
                             if (it.previousIndex() == priorityClientIndex) {
                                 shiftClientIndex++;
                             }
@@ -167,12 +177,12 @@ public class PowerServer {
                 it = clientList.listIterator();
             }
         } while (it.nextIndex() != priorityClientIndex);
-        // Shift priority to next client
+        // Shift priority to next client, if necessary
         priorityClientIndex = (priorityClientIndex + shiftClientIndex) % clientList.size();
     }
     
     // Send a broadcast packet with client addresses and authorization amounts
-    public static void sendGrantPacket() {
+    public void sendGrantPacket() {
         // Create new output socket with dynamically assigned port
         try (DatagramSocket sendSocket = new DatagramSocket()) {
             PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientList);
@@ -191,7 +201,7 @@ public class PowerServer {
         }
     }
 
-    private static void printTimestamp() {
+    private void printTimestamp() {
         Time time = new Time(System.currentTimeMillis());
         System.out.print("[" + time.toString() + "] ");
     }
