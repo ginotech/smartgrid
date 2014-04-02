@@ -11,8 +11,8 @@ import java.util.*;
 
 public class PowerClient {
 
-    static final boolean RASPBERRY_PI = false;
-    static final int GPIO_PIN = 7;
+    static final boolean RASPBERRY_PI = true;
+    static final int GPIO_PIN = 11;
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
@@ -38,8 +38,7 @@ public class PowerClient {
         System.out.println("My address is " + myAddr.getHostAddress());
 
         if (RASPBERRY_PI) {
-            Process gpio_export = Runtime.getRuntime().exec("echo " + GPIO_PIN + " > /sys/class/gpio/export");
-            Process gpio_direction = Runtime.getRuntime().exec("echo out > /sys/class/gpio" + GPIO_PIN);
+            Process gpio_direction = Runtime.getRuntime().exec("gpio mode " + GPIO_PIN + " output");
         }
 
         PowerClient powerClient = new PowerClient(myAddr, powerRequested);
@@ -86,12 +85,13 @@ public class PowerClient {
                         System.out.format("Received authorization for 0x%08X (%d)\n", authValue, authValue);
                         powerRequested--;
                         if (RASPBERRY_PI) {
-                            Process gpio_on = Runtime.getRuntime().exec("echo 1 > /sys/class/gpio/gpio" + GPIO_PIN);
+                            String command = "gpio write " + GPIO_PIN + " 1";
+                            Process gpio_on = Runtime.getRuntime().exec(command);
                         }
                         log.logGrant(myAddr, authValue, serverTime);
                     } else {
                         if (RASPBERRY_PI) {
-                            Process gpio_off = Runtime.getRuntime().exec("echo 0 > /sys/class/gpio/gpio" + GPIO_PIN);
+                            Process gpio_off = Runtime.getRuntime().exec("gpio write " + GPIO_PIN + " 0");
                         }
                         if (powerRequested == 0) {
                             System.out.println("Request satisfied. Exiting.");
