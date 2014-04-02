@@ -12,6 +12,7 @@ import java.util.*;
 public class PowerClient {
 
     static final boolean RASPBERRY_PI = false;
+    static final int GPIO_PIN = 7;
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
@@ -35,6 +36,11 @@ public class PowerClient {
         final InetAddress serverAddr = InetAddress.getByName(args[1]);
         final int powerRequested = Integer.parseInt(args[2]);
         System.out.println("My address is " + myAddr.getHostAddress());
+
+        if (RASPBERRY_PI) {
+            Process gpio_export = Runtime.getRuntime().exec("echo " + GPIO_PIN + " > /sys/class/gpio/export");
+            Process gpio_direction = Runtime.getRuntime().exec("echo out > /sys/class/gpio" + GPIO_PIN);
+        }
 
         PowerClient powerClient = new PowerClient(myAddr, powerRequested);
         powerClient.requestPower(serverAddr);
@@ -80,13 +86,12 @@ public class PowerClient {
                         System.out.format("Received authorization for 0x%08X (%d)\n", authValue, authValue);
                         powerRequested--;
                         if (RASPBERRY_PI) {
-                            Process p = Runtime.getRuntime().exec("gpio mode 11 output");
-                            Process q = Runtime.getRuntime().exec("gpio write 11 1");
+                            Process gpio_on = Runtime.getRuntime().exec("echo 1 > /sys/class/gpio/gpio" + GPIO_PIN);
                         }
                         log.logGrant(myAddr, authValue, serverTime);
                     } else {
                         if (RASPBERRY_PI) {
-                            Process r = Runtime.getRuntime().exec("gpio write 11 0");
+                            Process gpio_off = Runtime.getRuntime().exec("echo 0 > /sys/class/gpio/gpio" + GPIO_PIN);
                         }
                         if (powerRequested == 0) {
                             System.out.println("Request satisfied. Exiting.");
