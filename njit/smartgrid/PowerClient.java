@@ -16,23 +16,25 @@ public class PowerClient {
     private static final int LOW_POWER_PIN = 12;
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
-    static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
+    static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
 
     private InetAddress myAddr;
     private int durationRequested = 0;
+    private int powerRequested = 0;
     private PowerLog log;
 
     /**
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        if (args.length < 3) {
-            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <request duration>");
+        if (args.length < 4) {
+            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <power> <duration>");
             System.exit(0);
         }
         final InetAddress myAddr = InetAddress.getByName(args[0]);
         final InetAddress serverAddr = InetAddress.getByName(args[1]);
-        final int durationRequested = Integer.parseInt(args[2]);
+        final int powerRequested = Integer.parseInt(args[2]);
+        final int durationRequested = Integer.parseInt(args[3]);
         System.out.println("My address is " + myAddr.getHostAddress());
 
         if (RASPBERRY_PI) {
@@ -40,14 +42,15 @@ public class PowerClient {
             Runtime.getRuntime().exec("gpio mode " + LOW_POWER_PIN + " output");
         }
 
-        PowerClient powerClient = new PowerClient(myAddr, durationRequested);
+        PowerClient powerClient = new PowerClient(myAddr, durationRequested, powerRequested);
         powerClient.requestPower(serverAddr);
         powerClient.listenForGrant();
     }
 
-    public PowerClient(InetAddress myAddr, int durationRequested) {
+    public PowerClient(InetAddress myAddr, int durationRequested, int powerRequested) {
         this.myAddr = myAddr;
         this.durationRequested = durationRequested;
+        this.powerRequested = powerRequested;
 
         this.log = new PowerLog(false);
     }
@@ -70,14 +73,14 @@ public class PowerClient {
                         break;
                     }
                     InetAddress clientAddr = InetAddress.getByAddress(addrArray);
-                    if (clientAddr == myAddr) {
+                    if (clientAddr.equals(myAddr)) {
                         // Get the auth values
                         int powerGranted = packetData.getInt();
                         int durationGranted = packetData.getInt();
-                        if (powerGranted > 0) {
+                        if (durationGranted > 0) {
                             Time time = new Time(System.currentTimeMillis());
                             System.out.print("[" + time.toString() + "] ");
-                            System.out.format("Received authorization for %ds at %dW\n", durationGranted, powerGranted);
+                            System.out.format("Received authorization for %dW (%ds remaining)\n", powerGranted, durationGranted - 1);
                             durationRequested--;
                             if (RASPBERRY_PI) {
 //                            Process gpio_on = Runtime.getRuntime().exec("gpio write " + HIGH_POWER_PIN + " 1");
@@ -123,10 +126,11 @@ public class PowerClient {
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
-            requestBuffer.putInt(durationRequested);               // Power requested
+            requestBuffer.putInt(powerRequested);
+            requestBuffer.putInt(durationRequested);
             DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), REQUEST_PACKET_LENGTH, serverAddr, SERVER_PORT);
             sendSocket.send(requestPacket);
-            log.logRequest(myAddr, 0, durationRequested, 0);
+            log.logRequest(myAddr, powerRequested, durationRequested, 0);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);

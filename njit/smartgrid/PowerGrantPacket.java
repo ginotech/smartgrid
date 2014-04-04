@@ -9,7 +9,7 @@ public class PowerGrantPacket {
     
     private final DatagramPacket packet;
     
-    private static final int SEGMENT_SIZE = 8; // Size of data segment for each client in bytes
+    private static final int SEGMENT_SIZE = 12; // Size of data segment for each client in bytes
     private static final int TIMESTAMP_SIZE = 8;
     private static final int PKT_SIZE = 1472;   // Total packet size in bytes (over 1472 will fragment)
     private static final int CLIENT_PORT = 1235;
@@ -45,9 +45,9 @@ public class PowerGrantPacket {
             packetData.put((byte) 0xFF);
         }
         // Fill the rest of the packet with alternating 0's and 1's
-        while (packetData.hasRemaining()) {
-            packetData.put((byte) 0x55);   // ASCII 'U', also binary '01010101'
-        }
+//        while (packetData.hasRemaining()) {
+//            packetData.put((byte) 0x55);   // ASCII 'U', also binary '01010101'
+//        }
         packet = new DatagramPacket(packetData.array(), PKT_SIZE, destAddr, CLIENT_PORT);
     }
     

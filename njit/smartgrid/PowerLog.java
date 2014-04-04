@@ -52,7 +52,7 @@ public class PowerLog {
 
     }
 
-    public void logRequest(InetAddress clientAddress, double clientBatteryLevel, int powerRequested,
+    public void logRequest(InetAddress clientAddress, int powerRequested, int durationRequested,
                            long clientTimestamp) {
         String logString = "REQ" + DELIMITER;
         if (HUMAN_READABLE) {
@@ -71,8 +71,8 @@ public class PowerLog {
 
         }
         logString += clientAddress.getHostAddress() + DELIMITER;    // Client IP address
-        logString += clientBatteryLevel + DELIMITER;                // Client battery level
-        logString += powerRequested;
+        logString += powerRequested + "W" + DELIMITER;              // Power requested
+        logString += durationRequested + "s";                       // Duration requested
 
         try {
             bw.write(logString, 0, logString.length());
@@ -100,7 +100,7 @@ public class PowerLog {
             }
         }
         logString += clientAddress.getHostAddress() + DELIMITER;
-        logString += powerGranted;
+        logString += powerGranted + "W";
         try {
             bw.write(logString, 0, logString.length());
             bw.newLine();

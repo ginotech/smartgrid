@@ -13,11 +13,11 @@ public class PowerRequest {
     private int powerRequested;
     private int powerGranted;
 
-    public PowerRequest(InetAddress myAddr, int durationRequested, boolean highPower) {
+    public PowerRequest(InetAddress myAddr, int durationRequested, int powerRequested) {
         this.myAddr = myAddr;
         this.durationRequested = durationRequested;
         this.durationGranted = 0;
-        if (highPower) {
+        if (powerRequested >= 60) {
             this.powerRequested = HIGH_POWER_WATTS;
         } else {
             this.powerRequested = LOW_POWER_WATTS;

@@ -9,13 +9,13 @@ public class PowerServer {
     
     private static final int GRANT_FREQUENCY = 1000;    // How often to send grant packets (milliseconds)
     static final int SERVER_PORT = 1234;                // Port on which to listen for requests / destination port for grants
-    static final int REQUEST_PACKET_LENGTH = 12;        // Size of the request packet in bytes
+    static final int REQUEST_PACKET_LENGTH = 16;        // Size of the request packet in bytes
 
     private InetAddress myAddr = null;
     private InetAddress destAddr = null;
     private int currentLoadWatts = 0;
     private final int maxLoadWatts;
-    private List<PowerRequest> clientList;
+    private List<PowerRequest> clientList;  // FIXME: this can have duplicates! that is bad! use a map!
     private int priorityClientIndex = 0;
     private PowerLog log;
 
@@ -38,7 +38,7 @@ public class PowerServer {
         }
         final int maxLoad = Integer.parseInt(args[2]);
         System.out.println("Broadcasting to " + destAddr.getHostAddress());
-        System.out.println("Capacity: " + maxLoad);
+        System.out.println("Capacity: " + maxLoad + "W");
 
         PowerServer powerServer = new PowerServer(myAddr, destAddr, maxLoad);
         powerServer.start();
@@ -87,11 +87,12 @@ public class PowerServer {
                         // TODO: Validate the request packet before doing anything with it!
                         ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                         long clientTime = packetData.getLong();
+                        int powerRequested = packetData.getInt();
                         int durationRequested = packetData.getInt();
                         printTimestamp();
-                        System.out.format("Request from %s for %d: ", clientAddr.toString(), durationRequested);
-                        addRequest(clientAddr, durationRequested);
-                        log.logRequest(clientAddr, 0, durationRequested, clientTime);
+                        System.out.format("Request from %s for %dW (%ds duration)\n", clientAddr.toString(), powerRequested, durationRequested);
+                        addRequest(clientAddr, durationRequested, powerRequested);
+                        log.logRequest(clientAddr, powerRequested, durationRequested, clientTime);
                     }
                     else {
                         System.err.println("Invalid request packet of length " + packet.getLength());
@@ -108,9 +109,9 @@ public class PowerServer {
     }
     
     // Decide if we want to authorize a power request
-    private void addRequest(InetAddress clientAddr, int durationRequested) {
+    private void addRequest(InetAddress clientAddr, int durationRequested, int powerRequested) {
         if (durationRequested > 0) {
-            PowerRequest clientRequest = new PowerRequest(clientAddr, durationRequested, true);
+            PowerRequest clientRequest = new PowerRequest(clientAddr, durationRequested, powerRequested);
             clientList.add(clientRequest);   // Add the request to the queue
         } else {
             System.err.println("Invalid duration requested.");
@@ -175,7 +176,7 @@ public class PowerServer {
             PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientList);
             sendSocket.send(packet.getPacket());
             printTimestamp();
-            System.out.println("Sent grant packet. System load: " + currentLoadWatts + "/" + maxLoadWatts);
+            System.out.format("Sent grant packet. System load: %dW (max %dW)\n", currentLoadWatts, maxLoadWatts);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
