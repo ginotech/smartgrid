@@ -10,7 +10,8 @@ import java.util.Date;
 
 public class PowerLog {
 
-    private static final String DELIMITER = ", ";
+    private static final String DELIMITER = ",";
+    private static final boolean HUMAN_READABLE = true;
 
     private boolean isServer = false;
     private FileWriter fw = null;
@@ -54,11 +55,20 @@ public class PowerLog {
     public void logRequest(InetAddress clientAddress, double clientBatteryLevel, int powerRequested,
                            long clientTimestamp) {
         String logString = "REQ" + DELIMITER;
-        Timestamp time = new Timestamp(System.currentTimeMillis());
-        logString += time.toString() + DELIMITER;   // Local timestamp (server or client)
+        if (HUMAN_READABLE) {
+            Timestamp time = new Timestamp(System.currentTimeMillis());
+            logString += time.toString() + DELIMITER;   // Local timestamp (server or client)
+        } else {
+            logString += System.currentTimeMillis() + DELIMITER;
+        }
         if (isServer) {
-            String clientRequestTime = new Timestamp(clientTimestamp).toString();
-            logString += clientRequestTime + DELIMITER;  // Client timestamp (if server)
+            if (HUMAN_READABLE) {
+                String clientRequestTime = new Timestamp(clientTimestamp).toString();
+                logString += clientRequestTime + DELIMITER;  // Client timestamp (if server)
+            } else {
+                logString += clientTimestamp + DELIMITER;
+            }
+
         }
         logString += clientAddress.getHostAddress() + DELIMITER;    // Client IP address
         logString += clientBatteryLevel + DELIMITER;                // Client battery level
@@ -75,11 +85,19 @@ public class PowerLog {
 
     public void logGrant(InetAddress clientAddress, int powerGranted, long serverTimestamp) {
         String logString = "GRA" + DELIMITER;
-        Timestamp time = new Timestamp(System.currentTimeMillis());
-        logString += time.toString() + DELIMITER;   // Local timestamp (server or client)
+        if (HUMAN_READABLE) {
+            Timestamp time = new Timestamp(System.currentTimeMillis());
+            logString += time.toString() + DELIMITER;   // Local timestamp (server or client)
+        } else {
+            logString += System.currentTimeMillis() + DELIMITER;
+        }
         if (!isServer) {
-            String serverGrantTime = new Timestamp(serverTimestamp).toString();
-            logString += serverGrantTime + DELIMITER;   // Server timestamp (if client)
+            if (HUMAN_READABLE) {
+                String serverGrantTime = new Timestamp(serverTimestamp).toString();
+                logString += serverGrantTime + DELIMITER;   // Server timestamp (if client)
+            } else {
+                logString += serverTimestamp + DELIMITER;
+            }
         }
         logString += clientAddress.getHostAddress() + DELIMITER;
         logString += powerGranted;

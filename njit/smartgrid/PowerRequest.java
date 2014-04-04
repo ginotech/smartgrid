@@ -4,13 +4,24 @@ import java.net.InetAddress;
 
 public class PowerRequest {
 
+    static final int HIGH_POWER_WATTS = 60;
+    static final int LOW_POWER_WATTS = 40;
+
     private InetAddress myAddr;
+    private int durationRequested;
+    private int durationGranted;
     private int powerRequested;
     private int powerGranted;
 
-    public PowerRequest(InetAddress myAddr, int powerRequested) {
+    public PowerRequest(InetAddress myAddr, int durationRequested, boolean highPower) {
         this.myAddr = myAddr;
-        this.powerRequested = powerRequested;
+        this.durationRequested = durationRequested;
+        this.durationGranted = 0;
+        if (highPower) {
+            this.powerRequested = HIGH_POWER_WATTS;
+        } else {
+            this.powerRequested = LOW_POWER_WATTS;
+        }
         this.powerGranted = 0;
     }
 
@@ -18,22 +29,24 @@ public class PowerRequest {
         return myAddr;
     }
 
-    public int getPowerRequested() {
-        return powerRequested;
+    public int getPowerRequested() { return powerRequested; }
+
+    public int getPowerGranted() { return powerGranted; }
+
+    public int getDurationRequested() { return durationRequested; }
+
+    public int getDurationGranted() {
+        return durationGranted;
     }
 
-    public int getPowerGranted() {
-        return powerGranted;
+    public void setPowerGranted(int powerGranted) { this.powerGranted = powerGranted; }
+
+    public void setDurationRequested(int durationRequested) { this.durationRequested = durationRequested; }
+
+    public void setDurationGranted(int durationGranted) {
+        this.durationGranted = durationGranted;
     }
 
-    public void setPowerRequested(int powerRequested) {
-        this.powerRequested = powerRequested;
-    }
-
-    public void setPowerGranted(int powerGranted) {
-        this.powerGranted = powerGranted;
-    }
-
-    public void decrementPowerGranted() { this.powerGranted--; }
+    public void decrementDurationGranted() { this.durationGranted--; }
 
 }

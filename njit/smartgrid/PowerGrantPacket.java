@@ -1,7 +1,6 @@
 package njit.smartgrid;
 import java.net.*;
 import java.nio.ByteBuffer;
-import java.sql.Timestamp;
 import java.util.*;
 //
 // Wrapper class for DataPacket
@@ -22,22 +21,23 @@ public class PowerGrantPacket {
     }
     
     // Constructor (send)
-    public PowerGrantPacket(InetAddress destAddr, List<PowerRequest> clientsActive) throws UnknownHostException {
+    public PowerGrantPacket(InetAddress destAddr, List<PowerRequest> clientList) throws UnknownHostException {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
-        final int numClients = clientsActive.size();
+        final int numClients = clientList.size();
         if (numClients < 0 || numClients * SEGMENT_SIZE  + TIMESTAMP_SIZE > PKT_SIZE) {
             throw new IllegalArgumentException(numClients + " is an invalid number of clients");
         }
-        // Build the packet. Begin with a start byte of 0xFF
+        // Build the packet. Begin with a timestamp from the server, then add clients
 	    ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
         packetData.putLong(System.currentTimeMillis());
-        for (PowerRequest entry : clientsActive) {
-            // Copy client address to packet data buffer
-            InetAddress clientAddr = entry.getAddress();
+        for (PowerRequest client : clientList) {
+            // Copy client address into packet data buffer
+            InetAddress clientAddr = client.getAddress();
             packetData.put(clientAddr.getAddress());            
-            // Copy authorization value to packet data buffer
-            packetData.putInt(entry.getPowerGranted());
+            // Copy power (in watts) and duration granted into packet data buffer
+            packetData.putInt(client.getPowerGranted());
+            packetData.putInt(client.getDurationGranted());
         }
         // Write four boundary bytes so we know where the real data stops
 	    // TODO: need to check for size limit here

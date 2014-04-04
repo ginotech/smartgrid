@@ -7,16 +7,14 @@ import java.util.*;
 
 public class PowerServer {
     
-    static final int GRANT_FREQUENCY = 1000;     // How often to send grant packets (milliseconds)
-    static final int SERVER_PORT = 1234;        // Port on which to listen for requests / destination port for grants
-    static final int REQUEST_PACKET_LENGTH = 12; // Size of the request packet in bytes
-    static final int DEFAULT_QUANTUM = 10;
+    private static final int GRANT_FREQUENCY = 1000;    // How often to send grant packets (milliseconds)
+    static final int SERVER_PORT = 1234;                // Port on which to listen for requests / destination port for grants
+    static final int REQUEST_PACKET_LENGTH = 12;        // Size of the request packet in bytes
 
     private InetAddress myAddr = null;
     private InetAddress destAddr = null;
-    private int currentLoad = 0;
-    private int maxLoad;
-    private int quantum;
+    private int currentLoadWatts = 0;
+    private final int maxLoadWatts;
     private List<PowerRequest> clientList;
     private int priorityClientIndex = 0;
     private PowerLog log;
@@ -26,7 +24,7 @@ public class PowerServer {
      */
     public static void main(String[] args) throws IOException {
         if (args.length < 3) {
-            System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <capacity> [quantum]");
+            System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <capacity>");
             if (System.getProperty("os.name").contains("Linux")) {
                 System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
             }
@@ -39,27 +37,17 @@ public class PowerServer {
             System.exit(1);
         }
         final int maxLoad = Integer.parseInt(args[2]);
-        int quantum = DEFAULT_QUANTUM;
-        if (args.length >= 4) {
-            quantum = Integer.parseInt(args[3]);
-            if (quantum < 1) {
-                System.err.println("Quantum must be greater than 0!");
-                System.exit(1);
-            }
-        }
         System.out.println("Broadcasting to " + destAddr.getHostAddress());
         System.out.println("Capacity: " + maxLoad);
-        System.out.println("Quantum " + quantum);
 
-        PowerServer powerServer = new PowerServer(myAddr, destAddr, maxLoad, quantum);
+        PowerServer powerServer = new PowerServer(myAddr, destAddr, maxLoad);
         powerServer.start();
     }
 
-    public PowerServer(InetAddress myAddr, InetAddress destAddr, int maxLoad, int quantum) {
+    public PowerServer(InetAddress myAddr, InetAddress destAddr, int maxLoadWatts) {
         this.myAddr = myAddr;
         this.destAddr = destAddr;
-        this.maxLoad = maxLoad;
-        this.quantum = quantum;
+        this.maxLoadWatts = maxLoadWatts;
 
         this.log = new PowerLog(true);
         this.clientList = new LinkedList<PowerRequest>();
@@ -99,15 +87,11 @@ public class PowerServer {
                         // TODO: Validate the request packet before doing anything with it!
                         ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                         long clientTime = packetData.getLong();
-                        int powerRequested = packetData.getInt();
+                        int durationRequested = packetData.getInt();
                         printTimestamp();
-                        System.out.format("Request from %s for %d: ", clientAddr.toString(), powerRequested);
-                        if (addRequest(clientAddr, powerRequested)) {
-                            System.out.println("Authorized.");
-                        } else {
-                            System.out.println("Rejected.");
-                        }
-                        log.logRequest(clientAddr, 0, powerRequested, clientTime);
+                        System.out.format("Request from %s for %d: ", clientAddr.toString(), durationRequested);
+                        addRequest(clientAddr, durationRequested);
+                        log.logRequest(clientAddr, 0, durationRequested, clientTime);
                     }
                     else {
                         System.err.println("Invalid request packet of length " + packet.getLength());
@@ -124,23 +108,23 @@ public class PowerServer {
     }
     
     // Decide if we want to authorize a power request
-    private boolean addRequest(InetAddress clientAddr, int powerRequested) {
-        if (powerRequested > 0) {
-            PowerRequest clientRequest = new PowerRequest(clientAddr, powerRequested);
+    private void addRequest(InetAddress clientAddr, int durationRequested) {
+        if (durationRequested > 0) {
+            PowerRequest clientRequest = new PowerRequest(clientAddr, durationRequested, true);
             clientList.add(clientRequest);   // Add the request to the queue
-            return true;
+        } else {
+            System.err.println("Invalid duration requested.");
         }
-        return false;
     }
 
     private void updateGrantAmount() {
         ListIterator<PowerRequest> it = clientList.listIterator();
         while (it.hasNext()) {
             PowerRequest entry = it.next();
-            if (entry.getPowerGranted() > 0) {
-                entry.decrementPowerGranted();
-                if (entry.getPowerGranted() == 0) {
-                    currentLoad--;
+            if (entry.getDurationGranted() > 0) {
+                entry.decrementDurationGranted();
+                if (entry.getDurationGranted() == 0) {
+                    currentLoadWatts -= entry.getPowerGranted();
                 }
             }
         }
@@ -153,23 +137,26 @@ public class PowerServer {
         int shiftClientIndex = 0;
         do {
             PowerRequest entry = it.next();
-            if (entry.getPowerGranted() == 0) {
+            if (entry.getDurationGranted() == 0) {
+                int durationRequested = entry.getDurationRequested();
                 int powerRequested = entry.getPowerRequested();
-                if (powerRequested > 0) {
-                    if (currentLoad < maxLoad) {
-                        currentLoad++;
-                        if (powerRequested <= quantum) {
-                            entry.setPowerGranted(powerRequested);
-                            entry.setPowerRequested(0);
-                            // If this grant completely satisfies a request, shift priority to next client
-                            if (it.previousIndex() == priorityClientIndex) {
-                                shiftClientIndex++;
-                            }
-                        }
-                        else {
-                            entry.setPowerGranted(quantum);
-                            entry.setPowerRequested(powerRequested - quantum);
-                        }
+                int powerGranted = 0;
+                if (durationRequested > 0) {
+                    if ((powerRequested == PowerRequest.HIGH_POWER_WATTS) && (currentLoadWatts + PowerRequest.HIGH_POWER_WATTS <= maxLoadWatts)) {
+                        powerGranted = PowerRequest.HIGH_POWER_WATTS;
+                    } else if (currentLoadWatts + PowerRequest.LOW_POWER_WATTS <= maxLoadWatts) {
+                        powerGranted = PowerRequest.LOW_POWER_WATTS;
+                    }
+                    if (powerGranted > 0) {
+                        currentLoadWatts += powerGranted;
+                        entry.setPowerGranted(powerGranted);
+                        entry.setDurationGranted(durationRequested);
+                        entry.setDurationRequested(0);
+                        log.logGrant(entry.getAddress(), powerGranted, 0);
+                    }
+                    // If the priority client's request was satisfied completely, shift priority to next client
+                    if ((it.previousIndex() == priorityClientIndex) && (powerGranted == powerRequested)) {
+                        shiftClientIndex++;
                     }
                 }
             }
@@ -188,7 +175,7 @@ public class PowerServer {
             PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientList);
             sendSocket.send(packet.getPacket());
             printTimestamp();
-            System.out.println("Sent grant packet. System load: " + currentLoad + "/" + maxLoad);
+            System.out.println("Sent grant packet. System load: " + currentLoadWatts + "/" + maxLoadWatts);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
