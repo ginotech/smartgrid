@@ -11,7 +11,7 @@ import java.util.*;
 
 public class PowerClient {
 
-    private static final boolean RASPBERRY_PI = true;
+    private static final boolean RASPBERRY_PI = false;
     private static final int HIGH_POWER_PIN = 7;
     private static final int LOW_POWER_PIN = 12;
     static final int SERVER_PORT = 1234;

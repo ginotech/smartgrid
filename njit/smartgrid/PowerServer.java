@@ -15,7 +15,7 @@ public class PowerServer {
     private InetAddress destAddr = null;
     private int currentLoadWatts = 0;
     private final int maxLoadWatts;
-    private List<PowerRequest> clientList;  // FIXME: this can have duplicates! that is bad! use a map!
+    private Map<InetAddress, PowerRequest> clientMap;
     private int priorityClientIndex = 0;
     private PowerLog log;
 
@@ -50,7 +50,7 @@ public class PowerServer {
         this.maxLoadWatts = maxLoadWatts;
 
         this.log = new PowerLog(true);
-        this.clientList = new LinkedList<PowerRequest>();
+        this.clientMap = new LinkedHashMap<>(); // LinkedHashMap preserves insertion order & prevents duplicates
     }
 
 
@@ -60,7 +60,7 @@ public class PowerServer {
         new Timer().schedule(new TimerTask() {
             @Override
             public void run() {
-                if (!clientList.isEmpty()) {
+                if (!clientMap.isEmpty()) {
                     updateGrantAmount();// Decrement grant quantity
                     grantPower();       // Grant more requests, if the capacity exists
                     sendGrantPacket();  // Send grant broadcast
@@ -111,17 +111,16 @@ public class PowerServer {
     // Decide if we want to authorize a power request
     private void addRequest(InetAddress clientAddr, int durationRequested, int powerRequested) {
         if (durationRequested > 0) {
-            PowerRequest clientRequest = new PowerRequest(clientAddr, durationRequested, powerRequested);
-            clientList.add(clientRequest);   // Add the request to the queue
+            PowerRequest clientRequest = new PowerRequest(durationRequested, powerRequested);
+            clientMap.put(clientAddr, clientRequest);   // Add the request to the queue or update if already present
         } else {
             System.err.println("Invalid duration requested.");
         }
     }
 
+    // Iterate over the client map, updating grant durations and removing inactive clients from the current load total
     private void updateGrantAmount() {
-        ListIterator<PowerRequest> it = clientList.listIterator();
-        while (it.hasNext()) {
-            PowerRequest entry = it.next();
+        for (PowerRequest entry : clientMap.values()) {
             if (entry.getDurationGranted() > 0) {
                 entry.decrementDurationGranted();
                 if (entry.getDurationGranted() == 0) {
@@ -131,16 +130,22 @@ public class PowerServer {
         }
     }
 
-    // Decrement authorization amounts (also writes logfile)
     public void grantPower() {
         // Start iterating through the client list, beginning with the current priority client
-        ListIterator<PowerRequest> it  = clientList.listIterator(priorityClientIndex);
-        int shiftClientIndex = 0;
-        do {
-            PowerRequest entry = it.next();
-            if (entry.getDurationGranted() == 0) {
-                int durationRequested = entry.getDurationRequested();
-                int powerRequested = entry.getPowerRequested();
+        Iterator<Map.Entry<InetAddress, PowerRequest>> it  = clientMap.entrySet().iterator();
+        // Here we need to fast-forward the iterator to get to the priority client
+        for (int i = 0; i < priorityClientIndex; i++) {
+            it.next();
+        }
+        for (int i = 0; i < clientMap.size(); i++) {
+            Map.Entry<InetAddress, PowerRequest> entry = it.next();
+            if (i == 0) {
+                printTimestamp();
+                System.out.println("Priority client: " + entry.getKey().getHostAddress());
+            }
+            if (entry.getValue().getDurationGranted() == 0) {
+                int durationRequested = entry.getValue().getDurationRequested();
+                int powerRequested = entry.getValue().getPowerRequested();
                 int powerGranted = 0;
                 if (durationRequested > 0) {
                     if ((powerRequested == PowerRequest.HIGH_POWER_WATTS) && (currentLoadWatts + PowerRequest.HIGH_POWER_WATTS <= maxLoadWatts)) {
@@ -150,30 +155,28 @@ public class PowerServer {
                     }
                     if (powerGranted > 0) {
                         currentLoadWatts += powerGranted;
-                        entry.setPowerGranted(powerGranted);
-                        entry.setDurationGranted(durationRequested);
-                        entry.setDurationRequested(0);
-                        log.logGrant(entry.getAddress(), powerGranted, 0);
+                        entry.getValue().setPowerGranted(powerGranted);
+                        entry.getValue().setDurationGranted(durationRequested);
+                        entry.getValue().setDurationRequested(0);
+                        log.logGrant(entry.getKey(), powerGranted, 0);
                     }
                     // If the priority client's request was satisfied completely, shift priority to next client
-                    if ((it.previousIndex() == priorityClientIndex) && (powerGranted == powerRequested)) {
-                        shiftClientIndex++;
+                    if ((i == 0) && (powerGranted == powerRequested)) { // FIXME: what does "satisfied completely" mean?
+                        priorityClientIndex = (priorityClientIndex + 1) % clientMap.size();
                     }
                 }
             }
             if (!it.hasNext()) {
-                it = clientList.listIterator();
+                it = clientMap.entrySet().iterator();
             }
-        } while (it.nextIndex() != priorityClientIndex);
-        // Shift priority to next client, if necessary
-        priorityClientIndex = (priorityClientIndex + shiftClientIndex) % clientList.size();
+        }
     }
     
     // Send a broadcast packet with client addresses and authorization amounts
     public void sendGrantPacket() {
         // Create new output socket with dynamically assigned port
         try (DatagramSocket sendSocket = new DatagramSocket()) {
-            PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientList);
+            PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientMap);
             sendSocket.send(packet.getPacket());
             printTimestamp();
             System.out.format("Sent grant packet. System load: %dW (max %dW)\n", currentLoadWatts, maxLoadWatts);

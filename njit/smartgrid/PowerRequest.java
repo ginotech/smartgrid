@@ -7,14 +7,12 @@ public class PowerRequest {
     static final int HIGH_POWER_WATTS = 60;
     static final int LOW_POWER_WATTS = 40;
 
-    private InetAddress myAddr;
     private int durationRequested;
     private int durationGranted;
     private int powerRequested;
     private int powerGranted;
 
-    public PowerRequest(InetAddress myAddr, int durationRequested, int powerRequested) {
-        this.myAddr = myAddr;
+    public PowerRequest(int durationRequested, int powerRequested) {
         this.durationRequested = durationRequested;
         this.durationGranted = 0;
         if (powerRequested >= 60) {
@@ -23,10 +21,6 @@ public class PowerRequest {
             this.powerRequested = LOW_POWER_WATTS;
         }
         this.powerGranted = 0;
-    }
-
-    public InetAddress getAddress() {
-        return myAddr;
     }
 
     public int getPowerRequested() { return powerRequested; }
