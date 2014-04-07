@@ -180,10 +180,15 @@ public class PowerServer {
                 }
             } else {
                 // If we have excess capacity, see if the client wants to switch to high power
-                if ((powerGranted == PowerRequest.LOW_POWER_WATTS) && (powerRequested == PowerRequest.HIGH_POWER_WATTS) && (currentLoadWatts + PowerRequest.HIGH_POWER_WATTS <= maxLoadWatts)) {
+                if ((powerGranted == PowerRequest.LOW_POWER_WATTS) && (powerRequested == PowerRequest.HIGH_POWER_WATTS)
+                        && (currentLoadWatts + (PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS) <= maxLoadWatts)) {
                     powerGranted = PowerRequest.HIGH_POWER_WATTS;
                     entry.getValue().setPowerGranted(powerGranted);
                     currentLoadWatts += PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS;
+                } else if ((powerGranted == PowerRequest.HIGH_POWER_WATTS) && (powerRequested == PowerRequest.LOW_POWER_WATTS)) {
+                    powerGranted = PowerRequest.LOW_POWER_WATTS;
+                    entry.getValue().setPowerGranted(powerGranted);
+                    currentLoadWatts -= PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS;
                 }
             }
             if (!it.hasNext()) {
