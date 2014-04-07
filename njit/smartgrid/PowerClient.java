@@ -104,7 +104,6 @@ public class PowerClient {
                             durationRequested--;
                             outputEnabled = true;
                             if (RASPBERRY_PI) {
-//                            Process gpio_on = Runtime.getRuntime().exec("gpio write " + HIGH_POWER_PIN + " 1");
                                 if (powerGranted == PowerRequest.HIGH_POWER_WATTS) {
                                     pinWrite(HIGH_POWER_PIN, true);
                                 } else {
@@ -112,18 +111,17 @@ public class PowerClient {
                                 }
                             }
                             log.logGrant(myAddr, powerGranted, durationGranted, serverTime);
-                            if (!autoGenerate && durationRequested == 0) {
-                                System.out.println("Request satisfied. Exiting.");
-                                System.exit(0);
+                            if (durationRequested == 0) {
+                                outputEnabled = false;
+                                if (RASPBERRY_PI) {
+                                    pinWrite(HIGH_POWER_PIN, false);
+                                    pinWrite(LOW_POWER_PIN, false);
+                                }
+                                if (!autoGenerate) {
+                                    System.out.println("Request satisfied. Exiting.");
+                                    System.exit(0);
+                                }
                             }
-                        } else {
-                            outputEnabled = false;
-                            if (RASPBERRY_PI) {
-//                            Process gpio_off = Runtime.getRuntime().exec("gpio write " + HIGH_POWER_PIN + " 0");
-                                pinWrite(HIGH_POWER_PIN, false);
-                                pinWrite(LOW_POWER_PIN, false);
-                            }
-
                         }
                         break;
                     } else {
