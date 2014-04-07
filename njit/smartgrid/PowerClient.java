@@ -90,7 +90,7 @@ public class PowerClient {
                                     pinWrite(LOW_POWER_PIN, true);
                                 }
                             }
-                            log.logGrant(myAddr, powerGranted, serverTime);
+                            log.logGrant(myAddr, powerGranted, durationGranted, serverTime);
                         } else {
                             if (RASPBERRY_PI) {
 //                            Process gpio_off = Runtime.getRuntime().exec("gpio write " + HIGH_POWER_PIN + " 0");

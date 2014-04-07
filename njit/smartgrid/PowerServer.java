@@ -17,6 +17,7 @@ public class PowerServer {
     private final int maxLoadWatts;
     private Map<InetAddress, PowerRequest> clientMap;
     private int priorityClientIndex = 0;
+    private InetAddress priorityClient;
     private PowerLog log;
 
     /**
@@ -120,11 +121,17 @@ public class PowerServer {
 
     // Iterate over the client map, updating grant durations and removing inactive clients from the current load total
     private void updateGrantAmount() {
-        for (PowerRequest entry : clientMap.values()) {
-            if (entry.getDurationGranted() > 0) {
-                entry.decrementDurationGranted();
-                if (entry.getDurationGranted() == 0) {
-                    currentLoadWatts -= entry.getPowerGranted();
+        for (Map.Entry<InetAddress, PowerRequest> entry : clientMap.entrySet()) {
+            if (entry.getValue().getDurationGranted() > 0) {
+                entry.getValue().decrementDurationGranted();
+                // If this satisfies the client's request, update the current load
+                if (entry.getValue().getDurationGranted() == 0) {
+                    currentLoadWatts -= entry.getValue().getPowerGranted();
+                    // If the now-satisfied client had priority, shift priority to the next client
+                    if (entry.getKey() == priorityClient) {
+                        System.out.println("Changing priority");
+                        incrementPriorityClient();
+                    }
                 }
             }
         }
@@ -140,13 +147,15 @@ public class PowerServer {
         for (int i = 0; i < clientMap.size(); i++) {
             Map.Entry<InetAddress, PowerRequest> entry = it.next();
             if (i == 0) {
+                priorityClient = entry.getKey();
                 printTimestamp();
                 System.out.println("Priority client: " + entry.getKey().getHostAddress());
             }
+            int powerRequested = entry.getValue().getPowerRequested();
+            int powerGranted = entry.getValue().getPowerGranted();
+            // New request?
             if (entry.getValue().getDurationGranted() == 0) {
                 int durationRequested = entry.getValue().getDurationRequested();
-                int powerRequested = entry.getValue().getPowerRequested();
-                int powerGranted = 0;
                 if (durationRequested > 0) {
                     if ((powerRequested == PowerRequest.HIGH_POWER_WATTS) && (currentLoadWatts + PowerRequest.HIGH_POWER_WATTS <= maxLoadWatts)) {
                         powerGranted = PowerRequest.HIGH_POWER_WATTS;
@@ -158,16 +167,21 @@ public class PowerServer {
                         entry.getValue().setPowerGranted(powerGranted);
                         entry.getValue().setDurationGranted(durationRequested);
                         entry.getValue().setDurationRequested(0);
-                        log.logGrant(entry.getKey(), powerGranted, 0);
                     }
-                    // If the priority client's request was satisfied completely, shift priority to next client
-                    if ((i == 0) && (powerGranted == powerRequested)) { // FIXME: what does "satisfied completely" mean?
-                        priorityClientIndex = (priorityClientIndex + 1) % clientMap.size();
-                    }
+                }
+            } else {
+                // If we have excess capacity, see if the client wants to switch to high power
+                if ((powerGranted == PowerRequest.LOW_POWER_WATTS) && (powerRequested == PowerRequest.HIGH_POWER_WATTS) && (currentLoadWatts + PowerRequest.HIGH_POWER_WATTS <= maxLoadWatts)) {
+                    powerGranted = PowerRequest.HIGH_POWER_WATTS;
+                    entry.getValue().setPowerGranted(powerGranted);
+                    currentLoadWatts += PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS;
                 }
             }
             if (!it.hasNext()) {
                 it = clientMap.entrySet().iterator();
+            }
+            if (entry.getValue().getDurationGranted() > 0) {
+                log.logGrant(entry.getKey(), powerGranted, entry.getValue().getDurationGranted(), 0);
             }
         }
     }
@@ -190,6 +204,10 @@ public class PowerServer {
             System.err.println("IOException: " + e.getMessage());
             System.exit(1);
         }
+    }
+
+    private void incrementPriorityClient() {
+        priorityClientIndex = (priorityClientIndex + 1) % clientMap.size();
     }
 
     private void printTimestamp() {

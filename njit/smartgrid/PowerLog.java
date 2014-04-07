@@ -10,7 +10,7 @@ import java.util.Date;
 
 public class PowerLog {
 
-    private static final String DELIMITER = ",";
+    private static final String DELIMITER = ", ";
     private static final boolean HUMAN_READABLE = true;
 
     private boolean isServer = false;
@@ -83,7 +83,7 @@ public class PowerLog {
         }
     }
 
-    public void logGrant(InetAddress clientAddress, int powerGranted, long serverTimestamp) {
+    public void logGrant(InetAddress clientAddress, int powerGranted, int durationGranted, long serverTimestamp) {
         String logString = "GRA" + DELIMITER;
         if (HUMAN_READABLE) {
             Timestamp time = new Timestamp(System.currentTimeMillis());
@@ -100,7 +100,8 @@ public class PowerLog {
             }
         }
         logString += clientAddress.getHostAddress() + DELIMITER;
-        logString += powerGranted + "W";
+        logString += powerGranted + "W" + DELIMITER;
+        logString += durationGranted;
         try {
             bw.write(logString, 0, logString.length());
             bw.newLine();
