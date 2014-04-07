@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.sql.Time;
 import java.util.*;
 
+// TODO: Implement list of PowerRequests as value of clientMap entries? (would allow requests for nonimmediate grants)
+
 public class PowerServer {
     
     private static final int GRANT_FREQUENCY = 1000;    // How often to send grant packets (milliseconds)
@@ -53,7 +55,6 @@ public class PowerServer {
         this.log = new PowerLog(true);
         this.clientMap = new LinkedHashMap<>(); // LinkedHashMap preserves insertion order & prevents duplicates
     }
-
 
     public void start() {
         // Sends a grant packet every GRANT_FREQUENCY (ms) comprised of all
@@ -112,8 +113,16 @@ public class PowerServer {
     // Decide if we want to authorize a power request
     private void addRequest(InetAddress clientAddr, int durationRequested, int powerRequested) {
         if (durationRequested > 0) {
-            PowerRequest clientRequest = new PowerRequest(durationRequested, powerRequested);
-            clientMap.put(clientAddr, clientRequest);   // Add the request to the queue or update if already present
+            // If the client already exists and has an active grant, then add this request automatically
+            if (clientMap.containsKey(clientAddr) && clientMap.get(clientAddr).getDurationGranted() > 0) {
+                PowerRequest existingClientRequest = clientMap.get(clientAddr);
+                durationRequested += existingClientRequest.getDurationGranted();
+                existingClientRequest.setDurationGranted(durationRequested);
+                existingClientRequest.setPowerRequested(powerRequested);
+            } else {
+                PowerRequest newClientRequest = new PowerRequest(durationRequested, powerRequested);
+                clientMap.put(clientAddr, newClientRequest);
+            }
         } else {
             System.err.println("Invalid duration requested.");
         }
@@ -149,7 +158,7 @@ public class PowerServer {
             if (i == 0) {
                 priorityClient = entry.getKey();
                 printTimestamp();
-                System.out.println("Priority client: " + entry.getKey().getHostAddress());
+//                System.out.println("Priority client: " + entry.getKey().getHostAddress());
             }
             int powerRequested = entry.getValue().getPowerRequested();
             int powerGranted = entry.getValue().getPowerGranted();

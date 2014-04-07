@@ -6,19 +6,21 @@ import java.sql.Time;
 import java.util.*;
 
 // IMPORTANT: need to run export _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true" or put in ~/.profile
-// TODO: Add random request generation
 // TODO: add tracking of requests
 
 public class PowerClient {
 
-    private static final boolean RASPBERRY_PI = false;
+    private static final boolean RASPBERRY_PI = true;
     private static final int HIGH_POWER_PIN = 7;
     private static final int LOW_POWER_PIN = 12;
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
+    static final int REQUEST_DURATION = 5;      // Duration of random requests (seconds)
 
     private InetAddress myAddr;
+    private InetAddress serverAddr;
+    private boolean outputEnabled = false;
     private int durationRequested = 0;
     private int powerRequested = 0;
     private PowerLog log;
@@ -28,30 +30,47 @@ public class PowerClient {
      */
     public static void main(String[] args) throws IOException {
         if (args.length < 4) {
-            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <power> <duration>");
+            System.out.println("Usage:");
+            System.out.println("[manual] java njit.smartgrid.PowerClient <client address> <server address> <power> <duration>");
+            System.out.println("[auto] java njit.smartgrid.PowerClient <client address> <server address> <auto> <on> <off>");
             System.exit(0);
         }
+        final PowerClient powerClient;
         final InetAddress myAddr = InetAddress.getByName(args[0]);
         final InetAddress serverAddr = InetAddress.getByName(args[1]);
-        final int powerRequested = Integer.parseInt(args[2]);
-        final int durationRequested = Integer.parseInt(args[3]);
-        System.out.println("My address is " + myAddr.getHostAddress());
+        powerClient = new PowerClient(myAddr, serverAddr);
 
         if (RASPBERRY_PI) {
             Runtime.getRuntime().exec("gpio mode " + HIGH_POWER_PIN + " output");
             Runtime.getRuntime().exec("gpio mode " + LOW_POWER_PIN + " output");
         }
 
-        PowerClient powerClient = new PowerClient(myAddr, durationRequested, powerRequested);
-        powerClient.requestPower(serverAddr);
+        if (args[2].equals("auto")) {
+            if (args.length < 5) {
+                System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <auto> <on> <off>");
+            } else {
+                final double beta = Double.parseDouble(args[3]);    // Average on time in seconds
+                final double alpha = Double.parseDouble(args[4]);   // Average off time in seconds
+                new Timer().schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        powerClient.generateRequest(alpha, beta);
+                    }
+                }, 0, REQUEST_DURATION * 1000);
+            }
+        } else {
+            final int power = Integer.parseInt(args[2]);
+            final int duration = Integer.parseInt(args[3]);
+            powerClient.requestPower(power, duration);
+        }
+
+        System.out.println("My address is " + myAddr.getHostAddress());
         powerClient.listenForGrant();
     }
 
-    public PowerClient(InetAddress myAddr, int durationRequested, int powerRequested) {
+    public PowerClient(InetAddress myAddr, InetAddress serverAddr) {
         this.myAddr = myAddr;
-        this.durationRequested = durationRequested;
-        this.powerRequested = powerRequested;
-
+        this.serverAddr = serverAddr;
         this.log = new PowerLog(false);
     }
 
@@ -67,7 +86,6 @@ public class PowerClient {
                     // Get the address
                     byte[] addrArray = new byte[4];
                     packetData.get(addrArray, 0, 4);
-                    // FIXME: does not break out of loop at stop bytes
                     // If we hit the stop bytes, break out of loop
                     if (addrArray[0] == (byte)0xFF) {
                         break;
@@ -82,6 +100,7 @@ public class PowerClient {
                             System.out.print("[" + time.toString() + "] ");
                             System.out.format("Received authorization for %dW (%ds remaining)\n", powerGranted, durationGranted - 1);
                             durationRequested--;
+                            outputEnabled = true;
                             if (RASPBERRY_PI) {
 //                            Process gpio_on = Runtime.getRuntime().exec("gpio write " + HIGH_POWER_PIN + " 1");
                                 if (powerGranted == PowerRequest.HIGH_POWER_WATTS) {
@@ -92,14 +111,11 @@ public class PowerClient {
                             }
                             log.logGrant(myAddr, powerGranted, durationGranted, serverTime);
                         } else {
+                            outputEnabled = false;
                             if (RASPBERRY_PI) {
 //                            Process gpio_off = Runtime.getRuntime().exec("gpio write " + HIGH_POWER_PIN + " 0");
                                 pinWrite(HIGH_POWER_PIN, false);
                                 pinWrite(LOW_POWER_PIN, false);
-                            }
-                            if (durationRequested == 0) {
-                                System.out.println("Request satisfied. Exiting.");
-                                System.exit(0);
                             }
                         }
                         break;
@@ -121,7 +137,9 @@ public class PowerClient {
     }
 
     // Send a request packet to the server that contains a timestamp and the duration of power requested
-    public void requestPower(InetAddress serverAddr) {
+    public void requestPower(int power, int duration) {
+        this.powerRequested = power;
+        this.durationRequested = duration;
         System.out.println("Sending power request for " + durationRequested + " to " + serverAddr.getHostAddress());
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
@@ -143,6 +161,32 @@ public class PowerClient {
         }
     }
 
+    private void generateRequest(double alpha, double beta) {
+        double p = 1.0 / beta;          // Probability ON -> OFF
+        double q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
+        Random rand = new Random();
+        double stateChangeRand = rand.nextDouble();
+        boolean requestHighPower = rand.nextBoolean();
+
+        System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q);
+
+        if (outputEnabled) {
+            // Stay on?
+            if ((1-p) >= stateChangeRand) {
+                requestPower(powerRequested, REQUEST_DURATION);
+            }
+        } else {
+            // Turn on?
+            if (q >= stateChangeRand) {
+                if (requestHighPower) {
+                    requestPower(PowerRequest.HIGH_POWER_WATTS, REQUEST_DURATION);
+                } else {
+                    requestPower(PowerRequest.LOW_POWER_WATTS, REQUEST_DURATION);
+                }
+            }
+        }
+    }
+
     private void pinWrite(int pin, boolean state) {
         try {
             if (state) {
@@ -153,6 +197,6 @@ public class PowerClient {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
     }
+
 }

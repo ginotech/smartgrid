@@ -33,6 +33,8 @@ public class PowerRequest {
         return durationGranted;
     }
 
+    public void setPowerRequested(int powerRequested) { this.powerRequested = powerRequested; }
+
     public void setPowerGranted(int powerGranted) { this.powerGranted = powerGranted; }
 
     public void setDurationRequested(int durationRequested) { this.durationRequested = durationRequested; }
