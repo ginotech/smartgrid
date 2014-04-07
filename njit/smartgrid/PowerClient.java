@@ -21,6 +21,7 @@ public class PowerClient {
     private InetAddress myAddr;
     private InetAddress serverAddr;
     private boolean outputEnabled = false;
+    private static boolean autoGenerate = false;
     private int durationRequested = 0;
     private int powerRequested = 0;
     private PowerLog log;
@@ -51,6 +52,7 @@ public class PowerClient {
             } else {
                 final double beta = Double.parseDouble(args[3]);    // Average on time in seconds
                 final double alpha = Double.parseDouble(args[4]);   // Average off time in seconds
+                autoGenerate = true;
                 new Timer().schedule(new TimerTask() {
                     @Override
                     public void run() {
@@ -110,6 +112,10 @@ public class PowerClient {
                                 }
                             }
                             log.logGrant(myAddr, powerGranted, durationGranted, serverTime);
+                            if (!autoGenerate && durationRequested == 0) {
+                                System.out.println("Request satisfied. Exiting.");
+                                System.exit(0);
+                            }
                         } else {
                             outputEnabled = false;
                             if (RASPBERRY_PI) {
@@ -117,6 +123,7 @@ public class PowerClient {
                                 pinWrite(HIGH_POWER_PIN, false);
                                 pinWrite(LOW_POWER_PIN, false);
                             }
+
                         }
                         break;
                     } else {
@@ -140,7 +147,7 @@ public class PowerClient {
     public void requestPower(int power, int duration) {
         this.powerRequested = power;
         this.durationRequested = duration;
-        System.out.println("Sending power request for " + durationRequested + " to " + serverAddr.getHostAddress());
+        System.out.println("Requesting " + powerRequested + "W for " + durationRequested + "s");
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
@@ -168,7 +175,7 @@ public class PowerClient {
         double stateChangeRand = rand.nextDouble();
         boolean requestHighPower = rand.nextBoolean();
 
-        System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q);
+//        System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q);
 
         if (outputEnabled) {
             // Stay on?
