@@ -157,7 +157,7 @@ public class PowerServer {
             Map.Entry<InetAddress, PowerRequest> entry = it.next();
             if (i == 0) {
                 priorityClient = entry.getKey();
-                printTimestamp();
+//                printTimestamp();
 //                System.out.println("Priority client: " + entry.getKey().getHostAddress());
             }
             int powerRequested = entry.getValue().getPowerRequested();
@@ -207,7 +207,7 @@ public class PowerServer {
             PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientMap);
             sendSocket.send(packet.getPacket());
             printTimestamp();
-            System.out.format("Sent grant packet. System load: %dW (max %dW)\n", currentLoadWatts, maxLoadWatts);
+            System.out.format("System load: %dW (max %dW)\n", currentLoadWatts, maxLoadWatts);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
