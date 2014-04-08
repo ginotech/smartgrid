@@ -19,7 +19,7 @@ public class PowerClient {
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
-    static final int REQUEST_DURATION = 10;      // Duration of random requests (seconds)
+    static final int REQUEST_DURATION = 5;      // Duration of random requests (seconds)
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
