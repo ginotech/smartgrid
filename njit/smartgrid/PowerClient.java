@@ -6,13 +6,16 @@ import java.sql.Time;
 import java.util.*;
 
 // IMPORTANT: need to run export _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true" or put in ~/.profile
-// TODO: add tracking of requests
+// TODO: add tracking of requests (list of active requests?)
 
 public class PowerClient {
+
+    private static final boolean DEBUG = true;
 
     private static final boolean RASPBERRY_PI = true;
     private static final int HIGH_POWER_PIN = 7;
     private static final int LOW_POWER_PIN = 12;
+
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
@@ -107,12 +110,17 @@ public class PowerClient {
                             durationRequested--;
                             outputEnabled = true;
                             if (RASPBERRY_PI) {
-                                if (powerGranted == PowerRequest.HIGH_POWER_WATTS) {
+                                if (powerGranted == PowerRequest.POWER_HIGH) {
                                     pinWrite(HIGH_POWER_PIN, true);
                                     pinWrite(LOW_POWER_PIN, false);
-                                } else {
+                                } else if (powerGranted == PowerRequest.POWER_LOW) {
                                     pinWrite(LOW_POWER_PIN, true);
                                     pinWrite(HIGH_POWER_PIN, false);
+                                } else if (powerGranted == PowerRequest.POWER_BOTH) {
+                                    pinWrite(HIGH_POWER_PIN, true);
+                                    pinWrite(LOW_POWER_PIN, true);
+                                } else {
+                                    System.err.println("Invalid grant amount.");
                                 }
                             }
                             log.logGrant(myAddr, powerGranted, durationGranted, serverTime);
@@ -149,7 +157,11 @@ public class PowerClient {
 
     // Send a request packet to the server that contains a timestamp and the duration of power requested
     public void requestPower(int power, int duration) {
-        this.powerRequested = power;
+        if ((power == PowerRequest.POWER_BOTH) || (power == PowerRequest.POWER_HIGH) || (power == PowerRequest.POWER_LOW)) {
+            this.powerRequested = power;
+        } else {
+            this.powerRequested = 0;
+        }
         this.durationRequested = duration;
         System.out.println("Requesting " + powerRequested + "W for " + durationRequested + "s");
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
@@ -179,7 +191,7 @@ public class PowerClient {
         double stateChangeRand = rand.nextDouble();
         double requestHighPower = rand.nextDouble();
 
-//        System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q);
+        if (DEBUG) { System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q); }
 
         if (outputEnabled) {
             // Stay on?
@@ -189,10 +201,11 @@ public class PowerClient {
         } else {
             // Turn on?
             if (q >= stateChangeRand) {
+                // TODO: Add POWER_BOTH generate option
                 if (requestHighPower <= HIGH_POWER_PROB) {
-                    requestPower(PowerRequest.HIGH_POWER_WATTS, REQUEST_DURATION);
+                    requestPower(PowerRequest.POWER_HIGH, REQUEST_DURATION);
                 } else {
-                    requestPower(PowerRequest.LOW_POWER_WATTS, REQUEST_DURATION);
+                    requestPower(PowerRequest.POWER_LOW, REQUEST_DURATION);
                 }
             }
         }

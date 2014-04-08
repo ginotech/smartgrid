@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.sql.Time;
 import java.util.*;
 
-// TODO: Implement list of PowerRequests as value of clientMap entries? (would allow requests for nonimmediate grants)
+// TODO: Implement list of PowerRequests as value of clientMap entries? (would allow requests for non-immediate grants)
 
 public class PowerServer {
     
@@ -166,10 +166,12 @@ public class PowerServer {
             if (entry.getValue().getDurationGranted() == 0) {
                 int durationRequested = entry.getValue().getDurationRequested();
                 if (durationRequested > 0) {
-                    if ((powerRequested == PowerRequest.HIGH_POWER_WATTS) && (currentLoadWatts + PowerRequest.HIGH_POWER_WATTS <= maxLoadWatts)) {
-                        powerGranted = PowerRequest.HIGH_POWER_WATTS;
-                    } else if (currentLoadWatts + PowerRequest.LOW_POWER_WATTS <= maxLoadWatts) {
-                        powerGranted = PowerRequest.LOW_POWER_WATTS;
+                    if ((powerRequested == PowerRequest.POWER_BOTH) && (currentLoadWatts + PowerRequest.POWER_BOTH <= maxLoadWatts)) {
+                        powerGranted = PowerRequest.POWER_BOTH;
+                    } else if ((powerRequested >= PowerRequest.POWER_HIGH) && (currentLoadWatts + PowerRequest.POWER_HIGH <= maxLoadWatts)) {
+                        powerGranted = PowerRequest.POWER_HIGH;
+                    } else if (currentLoadWatts + PowerRequest.POWER_LOW <= maxLoadWatts) {
+                        powerGranted = PowerRequest.POWER_LOW;
                     }
                     if (powerGranted > 0) {
                         currentLoadWatts += powerGranted;
@@ -180,15 +182,15 @@ public class PowerServer {
                 }
             } else {
                 // If we have excess capacity, see if the client wants to switch to high power
-                if ((powerGranted == PowerRequest.LOW_POWER_WATTS) && (powerRequested == PowerRequest.HIGH_POWER_WATTS)
-                        && (currentLoadWatts + (PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS) <= maxLoadWatts)) {
-                    powerGranted = PowerRequest.HIGH_POWER_WATTS;
+                if ((powerGranted == PowerRequest.POWER_LOW) && (powerRequested == PowerRequest.POWER_HIGH)
+                        && (currentLoadWatts + (PowerRequest.POWER_HIGH - PowerRequest.POWER_LOW) <= maxLoadWatts)) {
+                    powerGranted = PowerRequest.POWER_HIGH;
                     entry.getValue().setPowerGranted(powerGranted);
-                    currentLoadWatts += PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS;
-                } else if ((powerGranted == PowerRequest.HIGH_POWER_WATTS) && (powerRequested == PowerRequest.LOW_POWER_WATTS)) {
-                    powerGranted = PowerRequest.LOW_POWER_WATTS;
+                    currentLoadWatts += PowerRequest.POWER_HIGH - PowerRequest.POWER_LOW;
+                } else if ((powerGranted == PowerRequest.POWER_HIGH) && (powerRequested == PowerRequest.POWER_LOW)) {
+                    powerGranted = PowerRequest.POWER_LOW;
                     entry.getValue().setPowerGranted(powerGranted);
-                    currentLoadWatts -= PowerRequest.HIGH_POWER_WATTS - PowerRequest.LOW_POWER_WATTS;
+                    currentLoadWatts -= PowerRequest.POWER_HIGH - PowerRequest.POWER_LOW;
                 }
             }
             if (!it.hasNext()) {
