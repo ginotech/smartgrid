@@ -10,7 +10,7 @@ import java.util.*;
 
 public class PowerClient {
 
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     private static final boolean RASPBERRY_PI = true;
     private static final int HIGH_POWER_PIN = 7;
@@ -19,7 +19,7 @@ public class PowerClient {
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
-    static final int REQUEST_DURATION = 5;      // Duration of random requests (seconds)
+    static final int TIMESLOT_LENGTH = 2;      // Duration of random requests (seconds)
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
@@ -53,17 +53,17 @@ public class PowerClient {
 
         if (args[2].equals("auto")) {
             if (args.length < 5) {
-                System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <auto> <on> <off>");
+                System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <auto> <on percentage> <cycle length (s)>");
             } else {
-                final double beta = Double.parseDouble(args[3]);    // Average on time in seconds
-                final double alpha = Double.parseDouble(args[4]);   // Average off time in seconds
+                final double onPercentage = Double.parseDouble(args[3]);    // Average on length
+                final double cycleLength = Double.parseDouble(args[4]);
                 autoGenerate = true;
                 new Timer().schedule(new TimerTask() {
                     @Override
                     public void run() {
-                        powerClient.generateRequest(alpha, beta);
+                        powerClient.generateRequest(onPercentage, cycleLength);
                     }
-                }, 0, REQUEST_DURATION * 1000);
+                }, 0, TIMESLOT_LENGTH * 1000);
             }
         } else {
             final int power = Integer.parseInt(args[2]);
@@ -183,9 +183,11 @@ public class PowerClient {
         }
     }
 
-    private void generateRequest(double alpha, double beta) {
-        double p = 1.0 / beta;          // Probability ON -> OFF
-        double q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
+    private void generateRequest(double onPercentage, double cycleLength) {
+        final double beta = cycleLength / TIMESLOT_LENGTH * onPercentage;
+        final double alpha = cycleLength / TIMESLOT_LENGTH - beta;
+        final double p = 1.0 / beta;          // Probability ON -> OFF
+        final double q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
         Random rand = new Random();
         double stateChangeRand = rand.nextDouble();
         double powerLevelRand = rand.nextDouble();
@@ -195,18 +197,17 @@ public class PowerClient {
         if (outputEnabled) {
             // Stay on?
             if ((1-p) >= stateChangeRand) {
-                requestPower(powerRequested, REQUEST_DURATION);
+                requestPower(powerRequested, TIMESLOT_LENGTH);
             }
         } else {
             // Turn on?
             if (q >= stateChangeRand) {
-                // TODO: Add POWER_BOTH generate option
                 if (powerLevelRand < 1.0/3.0) {
-                    requestPower(PowerRequest.POWER_HIGH, REQUEST_DURATION);
+                    requestPower(PowerRequest.POWER_HIGH, TIMESLOT_LENGTH);
                 } else if (powerLevelRand < 2.0/3.0) {
-                    requestPower(PowerRequest.POWER_LOW, REQUEST_DURATION);
+                    requestPower(PowerRequest.POWER_LOW, TIMESLOT_LENGTH);
                 } else {
-                    requestPower(PowerRequest.POWER_BOTH, REQUEST_DURATION);
+                    requestPower(PowerRequest.POWER_BOTH, TIMESLOT_LENGTH);
                 }
             }
         }
