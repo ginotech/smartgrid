@@ -155,6 +155,7 @@ public class PowerServer {
         }
         for (int i = 0; i < clientMap.size(); i++) {
             Map.Entry<InetAddress, PowerRequest> entry = it.next();
+            // Is this the priority client?
             if (i == 0) {
                 priorityClient = entry.getKey();
 //                printTimestamp();
@@ -181,6 +182,7 @@ public class PowerServer {
                     }
                 }
             }
+            // If we're at the end of the list, wrap around to the beginning
             if (!it.hasNext()) {
                 it = clientMap.entrySet().iterator();
             }
