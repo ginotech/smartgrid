@@ -20,7 +20,6 @@ public class PowerClient {
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
     static final int REQUEST_DURATION = 10;      // Duration of random requests (seconds)
-    static final double HIGH_POWER_PROB = 0.75;
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
@@ -189,7 +188,7 @@ public class PowerClient {
         double q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
         Random rand = new Random();
         double stateChangeRand = rand.nextDouble();
-        double requestHighPower = rand.nextDouble();
+        double powerLevelRand = rand.nextDouble();
 
         if (DEBUG) { System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q); }
 
@@ -202,10 +201,12 @@ public class PowerClient {
             // Turn on?
             if (q >= stateChangeRand) {
                 // TODO: Add POWER_BOTH generate option
-                if (requestHighPower <= HIGH_POWER_PROB) {
+                if (powerLevelRand < 1.0/3.0) {
                     requestPower(PowerRequest.POWER_HIGH, REQUEST_DURATION);
-                } else {
+                } else if (powerLevelRand < 2.0/3.0) {
                     requestPower(PowerRequest.POWER_LOW, REQUEST_DURATION);
+                } else {
+                    requestPower(PowerRequest.POWER_BOTH, REQUEST_DURATION);
                 }
             }
         }
