@@ -16,7 +16,8 @@ public class PowerClient {
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
-    static final int REQUEST_DURATION = 5;      // Duration of random requests (seconds)
+    static final int REQUEST_DURATION = 10;      // Duration of random requests (seconds)
+    static final double HIGH_POWER_PROB = 0.75;
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
@@ -44,6 +45,8 @@ public class PowerClient {
         if (RASPBERRY_PI) {
             Runtime.getRuntime().exec("gpio mode " + HIGH_POWER_PIN + " output");
             Runtime.getRuntime().exec("gpio mode " + LOW_POWER_PIN + " output");
+            powerClient.pinWrite(HIGH_POWER_PIN, false);
+            powerClient.pinWrite(LOW_POWER_PIN, false);
         }
 
         if (args[2].equals("auto")) {
@@ -106,11 +109,14 @@ public class PowerClient {
                             if (RASPBERRY_PI) {
                                 if (powerGranted == PowerRequest.HIGH_POWER_WATTS) {
                                     pinWrite(HIGH_POWER_PIN, true);
+                                    pinWrite(LOW_POWER_PIN, false);
                                 } else {
                                     pinWrite(LOW_POWER_PIN, true);
+                                    pinWrite(HIGH_POWER_PIN, false);
                                 }
                             }
                             log.logGrant(myAddr, powerGranted, durationGranted, serverTime);
+                        } else {
                             if (durationRequested == 0) {
                                 outputEnabled = false;
                                 if (RASPBERRY_PI) {
@@ -171,7 +177,7 @@ public class PowerClient {
         double q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
         Random rand = new Random();
         double stateChangeRand = rand.nextDouble();
-        boolean requestHighPower = rand.nextBoolean();
+        double requestHighPower = rand.nextDouble();
 
 //        System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q);
 
@@ -183,7 +189,7 @@ public class PowerClient {
         } else {
             // Turn on?
             if (q >= stateChangeRand) {
-                if (requestHighPower) {
+                if (requestHighPower <= HIGH_POWER_PROB) {
                     requestPower(PowerRequest.HIGH_POWER_WATTS, REQUEST_DURATION);
                 } else {
                     requestPower(PowerRequest.LOW_POWER_WATTS, REQUEST_DURATION);
