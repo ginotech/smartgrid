@@ -29,6 +29,8 @@ public class PowerClient {
     private int powerRequested = 0;
     private PowerLog log;
 
+    private boolean pendingRequest = false;
+
     /**
      * @param args the command line arguments
      */
@@ -106,6 +108,7 @@ public class PowerClient {
                             Time time = new Time(System.currentTimeMillis());
                             System.out.print("[" + time.toString() + "] ");
                             System.out.format("Received authorization for %dW (%ds remaining)\n", powerGranted, durationGranted - 1);
+                            pendingRequest = false;
                             durationRequested--;
                             outputEnabled = true;
                             if (RASPBERRY_PI) {
@@ -163,6 +166,7 @@ public class PowerClient {
         }
         this.durationRequested = duration;
         System.out.println("Requesting " + powerRequested + "W for " + durationRequested + "s");
+        pendingRequest = true;
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
@@ -184,6 +188,8 @@ public class PowerClient {
     }
 
     private void generateRequest(double onPercentage, double cycleLength) {
+        if (pendingRequest) { return; }
+        // FIXME: calculate these values in main()
         final double beta = cycleLength / TIMESLOT_LENGTH * onPercentage;
         final double alpha = cycleLength / TIMESLOT_LENGTH - beta;
         final double p = 1.0 / beta;          // Probability ON -> OFF
