@@ -36,7 +36,7 @@ public class PowerClient {
         if (args.length < 4) {
             System.out.println("Usage:");
             System.out.println("[manual] java njit.smartgrid.PowerClient <client address> <server address> <power> <duration>");
-            System.out.println("[auto] java njit.smartgrid.PowerClient <client address> <server address> <auto> <on> <off>");
+            System.out.println("[auto] java njit.smartgrid.PowerClient <client address> <server address> <auto> <on percentage> <cycle length (s)>");
             System.exit(0);
         }
         final PowerClient powerClient;
