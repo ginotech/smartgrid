@@ -21,7 +21,7 @@ public class PowerGrantPacket {
     }
     
     // Constructor (send)
-    public PowerGrantPacket(InetAddress destAddr, Map<InetAddress, PowerRequest> clientMap) throws UnknownHostException {
+    public PowerGrantPacket(InetAddress destAddr, Map<InetAddress, Queue<PowerRequest>> clientMap) throws UnknownHostException {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
         final int numClients = clientMap.size();
@@ -31,13 +31,13 @@ public class PowerGrantPacket {
         // Build the packet. Begin with a timestamp from the server, then add clients
 	    ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
         packetData.putLong(System.currentTimeMillis());
-        for (Map.Entry<InetAddress, PowerRequest> client : clientMap.entrySet()) {
+        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
             // Copy client address into packet data buffer
             InetAddress clientAddr = client.getKey();
             packetData.put(clientAddr.getAddress());            
             // Copy power (in watts) and duration granted into packet data buffer
-            packetData.putInt(client.getValue().getPowerGranted());
-            packetData.putInt(client.getValue().getDurationGranted());
+            packetData.putInt(client.getValue().peek().getPowerGranted());
+            packetData.putInt(client.getValue().peek().getDurationGranted());
         }
         // Write four boundary bytes so we know where the real data stops
 	    // TODO: need to check for size limit here
@@ -58,12 +58,5 @@ public class PowerGrantPacket {
     public byte[] getData() {
         return packet.getData();
     }
-    
-    public int getLength() {
-        return PKT_SIZE;
-    }
-    
-    public int getPort() {
-        return CLIENT_PORT;
-    }
+
 }
