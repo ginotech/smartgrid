@@ -158,8 +158,8 @@ public class PowerServer {
             // Is this the priority client?
             if (i == 0) {
                 priorityClient = entry.getKey();
-//                printTimestamp();
-//                System.out.println("Priority client: " + entry.getKey().getHostAddress());
+                printTimestamp();
+                System.out.print("Priority client: " + entry.getKey().getHostAddress() + ", ");
             }
             int powerRequested = entry.getValue().getPowerRequested();
             int powerGranted = entry.getValue().getPowerGranted();
@@ -198,7 +198,6 @@ public class PowerServer {
         try (DatagramSocket sendSocket = new DatagramSocket()) {
             PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientMap);
             sendSocket.send(packet.getPacket());
-            printTimestamp();
             System.out.format("System load: %dW (max %dW)\n", currentLoadWatts, maxLoadWatts);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());

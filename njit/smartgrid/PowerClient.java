@@ -204,6 +204,9 @@ public class PowerClient {
             // Stay on?
             if ((1-p) >= stateChangeRand) {
                 requestPower(powerRequested, TIMESLOT_LENGTH);
+                System.out.println("Continuing request");
+            } else {
+                System.out.println("End of request.");
             }
         } else {
             // Turn on?
