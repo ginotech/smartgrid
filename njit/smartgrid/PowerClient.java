@@ -19,7 +19,7 @@ public class PowerClient {
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 16; // Size of the request packet in bytes
-    static final int TIMESLOT_LENGTH = 2;      // Duration of random requests (seconds)
+    static final int TIMESLOT_LENGTH = 5;      // Duration of random requests (seconds)
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
@@ -27,6 +27,7 @@ public class PowerClient {
     private static boolean autoGenerate = false;
     private int durationRequested = 0;
     private int powerRequested = 0;
+    private double p, q;
     private PowerLog log;
 
     private boolean pendingRequest = false;
@@ -59,13 +60,8 @@ public class PowerClient {
             } else {
                 final double onPercentage = Double.parseDouble(args[3]);    // Average on length
                 final double cycleLength = Double.parseDouble(args[4]);
-                autoGenerate = true;
-                new Timer().schedule(new TimerTask() {
-                    @Override
-                    public void run() {
-                        powerClient.generateRequest(onPercentage, cycleLength);
-                    }
-                }, 0, TIMESLOT_LENGTH * 1000);
+                powerClient.calculateProbabilities(onPercentage, cycleLength);
+                powerClient.generateRequest();  // Generate initial request
             }
         } else {
             final int power = Integer.parseInt(args[2]);
@@ -108,6 +104,9 @@ public class PowerClient {
                             Time time = new Time(System.currentTimeMillis());
                             System.out.print("[" + time.toString() + "] ");
                             System.out.format("Received authorization for %dW (%ds remaining)\n", powerGranted, durationGranted - 1);
+                            if (durationGranted == 1) {
+                                generateRequest();
+                            }
                             pendingRequest = false;
                             durationRequested--;
                             outputEnabled = true;
@@ -187,13 +186,16 @@ public class PowerClient {
         }
     }
 
-    private void generateRequest(double onPercentage, double cycleLength) {
-        if (pendingRequest) { return; }
-        // FIXME: calculate these values in main()
+    private void calculateProbabilities(double onPercentage, double cycleLength) {
         final double beta = cycleLength / TIMESLOT_LENGTH * onPercentage;
         final double alpha = cycleLength / TIMESLOT_LENGTH - beta;
-        final double p = 1.0 / beta;          // Probability ON -> OFF
-        final double q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
+        p = 1.0 / beta;          // Probability ON -> OFF
+        q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
+        autoGenerate = true;
+    }
+
+    private void generateRequest() {
+        if (pendingRequest) { return; }
         Random rand = new Random();
         double stateChangeRand = rand.nextDouble();
         double powerLevelRand = rand.nextDouble();
