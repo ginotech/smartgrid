@@ -6,14 +6,14 @@ public class PowerRequest {
     static final int POWER_LOW = 40;
     static final int POWER_BOTH = POWER_HIGH + POWER_LOW;
 
-    private int durationRequested;
-    private int durationGranted;
+    private int packetsRequested;
+    private int packetsRemaining;
     private int powerRequested;
     private int powerGranted;
 
-    public PowerRequest(int durationRequested, int powerRequested) {
-        this.durationRequested = durationRequested;
-        this.durationGranted = 0;
+    public PowerRequest(int packetsRequested, int powerRequested) {
+        this.packetsRequested = packetsRequested;
+        this.packetsRemaining = 0;
         this.powerRequested = powerRequested;
         this.powerGranted = 0;
     }
@@ -22,22 +22,20 @@ public class PowerRequest {
 
     public int getPowerGranted() { return powerGranted; }
 
-    public int getDurationRequested() { return durationRequested; }
+    public int getPacketsRequested() { return packetsRequested; }
 
-    public int getDurationGranted() {
-        return durationGranted;
+    public int getPacketsRemaining() {
+        return packetsRemaining;
     }
-
-    public void setPowerRequested(int powerRequested) { this.powerRequested = powerRequested; }
 
     public void setPowerGranted(int powerGranted) { this.powerGranted = powerGranted; }
 
-    public void setDurationRequested(int durationRequested) { this.durationRequested = durationRequested; }
+    public void setPacketsRequested(int packetsRequested) { this.packetsRequested = packetsRequested; }
 
-    public void setDurationGranted(int durationGranted) {
-        this.durationGranted = durationGranted;
+    public void setPacketsRemaining(int packetsRemaining) {
+        this.packetsRemaining = packetsRemaining;
     }
 
-    public void decrementDurationGranted() { this.durationGranted--; }
+    public void decrementPacketsRemaining() { this.packetsRemaining--; }
 
 }

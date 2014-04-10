@@ -35,9 +35,14 @@ public class PowerGrantPacket {
             // Copy client address into packet data buffer
             InetAddress clientAddr = client.getKey();
             packetData.put(clientAddr.getAddress());            
-            // Copy power (in watts) and duration granted into packet data buffer
-            packetData.putInt(client.getValue().peek().getPowerGranted());
-            packetData.putInt(client.getValue().peek().getDurationGranted());
+            // Copy power (in watts) and number of packets granted into packet data buffer (or copy zeros if no grant issued)
+            if (client.getValue().isEmpty()) {
+                packetData.putInt(0);
+                packetData.putInt(0);
+            } else {
+                packetData.putInt(client.getValue().peek().getPowerGranted());
+                packetData.putInt(client.getValue().peek().getPacketsRemaining());
+            }
         }
         // Write four boundary bytes so we know where the real data stops
 	    // TODO: need to check for size limit here
