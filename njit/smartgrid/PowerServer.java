@@ -116,7 +116,6 @@ public class PowerServer {
             if (clientMap.containsKey(clientAddr) && !clientMap.get(clientAddr).isEmpty()) {
                 PowerRequest newPowerRequest = new PowerRequest(packetsRequested, powerRequested);
                 newPowerRequest.setPowerGranted(clientMap.get(clientAddr).peek().getPowerGranted());
-                newPowerRequest.setPacketsRemaining(newPowerRequest.getPacketsRequested());
                 clientMap.get(clientAddr).add(newPowerRequest);
             } else {
                 Queue<PowerRequest> requestQueue = new LinkedList<PowerRequest>();
@@ -150,10 +149,12 @@ public class PowerServer {
             if (powerRequest != null) {
                 powerRequested = powerRequest.getPowerRequested();
                 powerGranted = powerRequest.getPowerGranted();
-                // New request?
+                // New (or continuing) request?
                 if (powerRequest.getPacketsRemaining() == 0) {
                     int packetsRequested = powerRequest.getPacketsRequested();
                     if (packetsRequested > 0) {
+                        // We have to ignore any power this client may already be using
+                        currentLoadWatts -= powerGranted;
                         if ((powerRequested == PowerRequest.POWER_BOTH) && (currentLoadWatts + PowerRequest.POWER_BOTH <= maxLoadWatts)) {
                             powerGranted = PowerRequest.POWER_BOTH;
                         } else if ((powerRequested >= PowerRequest.POWER_HIGH) && (currentLoadWatts + PowerRequest.POWER_HIGH <= maxLoadWatts)) {
