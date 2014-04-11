@@ -12,7 +12,7 @@ public class PowerGrantPacket {
     private static final int SEGMENT_SIZE = 12; // Size of data segment for each client in bytes
     private static final int TIMESTAMP_SIZE = 8;
     private static final int PKT_SIZE = 1472;   // Total packet size in bytes (over 1472 will fragment)
-    private static final int CLIENT_PORT = 1235;
+    static final int CLIENT_PORT = 1235;
     
     // Constructor (receive)
     public PowerGrantPacket() {
