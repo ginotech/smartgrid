@@ -200,11 +200,19 @@ public class PowerClient {
     }
 
     private void calculateProbabilities(double onPercentage, double cycleLength) {
+        log.logString(String.format("Client: %s, Server: %s", myAddr.getHostAddress(), serverAddr.getHostAddress()));
+        log.logString(String.format("Timeslot length: %d, Grant period: %dms", TIMESLOT_LENGTH, GRANT_PERIOD));
+        if (autoGenerate) {
+            log.logString(String.format("Auto generation: Enabled"));
+        } else {
+            log.logString(String.format("Auto generation: Disabled"));
+        }
         final double beta = cycleLength / TIMESLOT_LENGTH * onPercentage;
         final double alpha = cycleLength / TIMESLOT_LENGTH - beta;
         p = 1.0 / beta;          // Probability ON -> OFF
         q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
         autoGenerate = true;
+        log.logString(String.format("beta=%f, alpha=%f, p=%f, q=%f", beta, alpha, p, q));
     }
 
     private void generateRequest() {
