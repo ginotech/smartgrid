@@ -62,8 +62,7 @@ public class PowerLog {
         }
     }
 
-    public void logRequest(InetAddress clientAddress, int powerRequested, int packetsRequested,
-                           long clientTimestamp) {
+    public void logRequest(InetAddress clientAddress, int powerRequested, long clientTimestamp) {
         String logString = "REQ" + DELIMITER;
         if (HUMAN_READABLE) {
             String time = new Timestamp(System.currentTimeMillis()).toString();
@@ -87,8 +86,7 @@ public class PowerLog {
 
         }
         logString += clientAddress.getHostAddress() + DELIMITER; // Client IP address
-        logString += powerRequested + "W" + DELIMITER;           // Power requested
-        logString += packetsRequested;                           // Number of packets requested
+        logString += powerRequested + "W";           // Power requested
 
         try {
             bw.write(logString, 0, logString.length());
@@ -99,7 +97,7 @@ public class PowerLog {
         }
     }
 
-    public void logGrant(InetAddress clientAddress, int powerGranted, int packetsRemaining, long serverTimestamp) {
+    public void logGrant(InetAddress clientAddress, int powerGranted, long serverTimestamp) {
         String logString = "GRA" + DELIMITER;
         if (HUMAN_READABLE) {
             String time = new Timestamp(System.currentTimeMillis()).toString();
@@ -123,9 +121,6 @@ public class PowerLog {
         }
         logString += clientAddress.getHostAddress() + DELIMITER;
         logString += powerGranted + "W";
-        if (!isServer) {
-            logString += DELIMITER + packetsRemaining;
-        }
         try {
             bw.write(logString, 0, logString.length());
             bw.newLine();

@@ -18,15 +18,12 @@ public class PowerClient {
 
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
-    static final int REQUEST_PACKET_LENGTH = 16;// Size of the request packet in bytes
-    static final int TIMESLOT_LENGTH = 5;       // Duration of random requests (in # of grant ticks - must be >1)
+    static final int REQUEST_PACKET_LENGTH = 12;// Size of the request packet in bytes
     static final int GRANT_PERIOD = 1000;       // How often to expect grant packets from the server (ms)
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
     private boolean outputState = false;
-    private static boolean autoGenerate = false;
-    private int packetsRequested = 0;
     private int powerRequested = 0;
     private boolean suppressTerminalOutput = false;
 
@@ -39,13 +36,8 @@ public class PowerClient {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        if (TIMESLOT_LENGTH < 2) {
-            System.err.println("Invalid TIMESLOT_LENGTH constant!");
-        }
         if (args.length < 4) {
-            System.out.println("Usage:");
-            System.out.println("[manual] java njit.smartgrid.PowerClient <client address> <server address> <power> <# of packets>");
-            System.out.println("[auto] java njit.smartgrid.PowerClient <client address> <server address> <auto> <on percentage> <cycle length (s)>");
+            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <on percentage> <cycle length (s)>");
             System.exit(0);
         }
         final PowerClient powerClient;
@@ -60,23 +52,17 @@ public class PowerClient {
             powerClient.pinWrite(LOW_POWER_PIN, false);
         }
 
-        if (args[2].equals("auto")) {
-            if (args.length < 5) {
-                System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <auto> <on percentage> <cycle length (s)>");
-            } else {
-                final double onPercentage = Double.parseDouble(args[3]);    // Average on length
-                final double cycleLength = Double.parseDouble(args[4]);
-                powerClient.calculateProbabilities(onPercentage, cycleLength);
-                powerClient.generateRequest();  // Generate initial request
-            }
+        if (args.length < 4) {
+            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <on percentage> <cycle length (s)>");
+            System.exit(0);
         } else {
-            final int power = Integer.parseInt(args[2]);
-            final int numPackets = Integer.parseInt(args[3]);
-            powerClient.requestPower(power, numPackets);
+            final double onPercentage = Double.parseDouble(args[2]);    // Average on length
+            final double cycleLength = Double.parseDouble(args[3]);
+            powerClient.calculateProbabilities(onPercentage, cycleLength);
+            powerClient.generateRequest();  // Generate initial request
+            powerClient.listenForGrant();
         }
-
         System.out.println("My address is " + myAddr.getHostAddress());
-        powerClient.listenForGrant();
     }
 
     public PowerClient(InetAddress myAddr, InetAddress serverAddr) {
@@ -102,24 +88,19 @@ public class PowerClient {
                         break;
                     }
                     InetAddress clientAddr = InetAddress.getByAddress(addrArray);
+                    // Found our address?
                     if (clientAddr.equals(myAddr)) {
                         // Get the auth values
                         int powerGranted = packetData.getInt();
-                        int packetsRemaining = packetData.getInt();
                         if (powerGranted > 0 || !suppressTerminalOutput) {
                             printTimestamp();
-                            System.out.format("Received authorization for %dW (%d remaining)\n", powerGranted, packetsRemaining);
+                            System.out.format("Got %dW\n", powerGranted);
                             suppressTerminalOutput = false;
                         }
-                        if (packetsRemaining == 1) {
-                            pendingRequest = false;
-                            if (autoGenerate) {
-                                generateRequest();
-                            }
-                        }
                         if (powerGranted > 0) {
+                            pendingRequest = false;
+                            // If we have a nonzero grant, turn on some lights
                             outputState = true;
-                            packetsRequested--;
                             if (RASPBERRY_PI) {
                                 if (powerGranted == PowerRequest.POWER_HIGH) {
                                     pinWrite(HIGH_POWER_PIN, true);
@@ -135,6 +116,7 @@ public class PowerClient {
                                 }
                             }
                         } else {
+                            // Otherwise, turn off the lights
                             outputState = false;
                             if (HIDE_EMPTY_GRANTS) {
                                 suppressTerminalOutput = true;
@@ -143,18 +125,17 @@ public class PowerClient {
                                 pinWrite(HIGH_POWER_PIN, false);
                                 pinWrite(LOW_POWER_PIN, false);
                             }
-                            if (!autoGenerate) {
-                                printTimestamp();
-                                System.out.println("Request satisfied. Exiting.");
-                                System.exit(0);
-                            }
                         }
-                        log.logGrant(myAddr, powerGranted, packetsRemaining, serverTime);
+                        log.logGrant(myAddr, powerGranted, serverTime);
                         break;
                     } else {
-                        packetData.getLong();   // skip the auth fields if they aren't ours
+                        packetData.getInt();   // skip the auth fields if they aren't ours
                     }
                 }
+                if (!pendingRequest) {
+                    generateRequest();
+                }
+
             }
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
@@ -169,24 +150,22 @@ public class PowerClient {
     }
 
     // Send a request packet to the server that contains a timestamp, power level, and # of packets requested
-    public void requestPower(int power, int packetsRequested) {
+    public void requestPower(int power) {
+        pendingRequest = true;
         if ((power == PowerRequest.POWER_BOTH) || (power == PowerRequest.POWER_HIGH) || (power == PowerRequest.POWER_LOW)) {
             this.powerRequested = power;
         } else {
             this.powerRequested = 0;
         }
-        this.packetsRequested = packetsRequested;
         printTimestamp();
-        System.out.println("Requesting " + powerRequested + "W for " + this.packetsRequested);
-        pendingRequest = true;
+        System.out.println("Requesting " + powerRequested + "W");
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
             requestBuffer.putInt(powerRequested);
-            requestBuffer.putInt(this.packetsRequested);
             DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), REQUEST_PACKET_LENGTH, serverAddr, SERVER_PORT);
             sendSocket.send(requestPacket);
-            log.logRequest(myAddr, powerRequested, this.packetsRequested, 0);
+            log.logRequest(myAddr, powerRequested, 0);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
@@ -201,18 +180,16 @@ public class PowerClient {
 
     private void calculateProbabilities(double onPercentage, double cycleLength) {
         log.logString(String.format("Client: %s, Server: %s", myAddr.getHostAddress(), serverAddr.getHostAddress()));
-        log.logString(String.format("Timeslot length: %d, Grant period: %dms", TIMESLOT_LENGTH, GRANT_PERIOD));
+        log.logString(String.format("Grant period: %dms", GRANT_PERIOD));
         log.logString(String.format("Auto generation: Enabled"));
-        final double beta = cycleLength / TIMESLOT_LENGTH * onPercentage;
-        final double alpha = cycleLength / TIMESLOT_LENGTH - beta;
+        final double beta = cycleLength * onPercentage;
+        final double alpha = cycleLength - beta;
         p = 1.0 / beta;          // Probability ON -> OFF
         q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
-        autoGenerate = true;
         log.logString(String.format("beta=%f, alpha=%f, p=%f, q=%f", beta, alpha, p, q));
     }
 
     private void generateRequest() {
-        if (pendingRequest) { return; }
         Random rand = new Random();
         double stateChangeRand = rand.nextDouble();
         double powerLevelRand = rand.nextDouble();
@@ -224,36 +201,22 @@ public class PowerClient {
             // Turn off?
             if (stateChangeRand <= p) {
                 printTimestamp();
-                System.out.println("End of request.");
-                scheduleRequestGeneration();
+                System.out.println("End of request block.");
             } else {
-                requestPower(powerRequested, TIMESLOT_LENGTH);
-                printTimestamp();
-                System.out.println("Continuing request");
+                requestPower(powerRequested);
             }
         } else {
             // Turn on?
             if (stateChangeRand <= q) {
                 if (powerLevelRand < 1.0/3.0) {
-                    requestPower(PowerRequest.POWER_HIGH, TIMESLOT_LENGTH);
+                    requestPower(PowerRequest.POWER_HIGH);
                 } else if (powerLevelRand < 2.0/3.0) {
-                    requestPower(PowerRequest.POWER_LOW, TIMESLOT_LENGTH);
+                    requestPower(PowerRequest.POWER_LOW);
                 } else {
-                    requestPower(PowerRequest.POWER_BOTH, TIMESLOT_LENGTH);
+                    requestPower(PowerRequest.POWER_BOTH);
                 }
-            } else {
-                scheduleRequestGeneration();
             }
         }
-    }
-
-    private void scheduleRequestGeneration() {
-        new Timer().schedule(new TimerTask() {
-            @Override
-            public void run() {
-                generateRequest();
-            }
-        }, TIMESLOT_LENGTH * GRANT_PERIOD);
     }
 
     private void pinWrite(int pin, boolean state) {

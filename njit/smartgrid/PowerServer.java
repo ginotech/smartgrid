@@ -9,7 +9,7 @@ public class PowerServer {
     
     static final int GRANT_PERIOD = 1000;    // How often to send grant packets (milliseconds)
     static final int SERVER_PORT = 1234;                // Port on which to listen for requests / destination port for grants
-    static final int REQUEST_PACKET_LENGTH = 16;        // Size of the request packet in bytes
+    static final int REQUEST_PACKET_LENGTH = 12;        // Size of the request packet in bytes
 
     private InetAddress myAddr = null;
     private InetAddress destAddr = null;
@@ -66,10 +66,10 @@ public class PowerServer {
             @Override
             public void run() {
                 if (!clientMap.isEmpty()) {
+                    checkForInactiveClients();
                     grantPower();       // Grant more requests, if the capacity exists
-                    sendGrantPacket();  // Send grant broadcast
-                    checkForInactiveClients();// Decrement grant quantity
                 }
+                sendGrantPacket();  // Send grant broadcast
             }
         }, GRANT_PERIOD, GRANT_PERIOD);
         listenForRequest();
@@ -92,11 +92,10 @@ public class PowerServer {
                         ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                         long clientTime = packetData.getLong();
                         int powerRequested = packetData.getInt();
-                        int packetsRequested = packetData.getInt();
-                        printTimestamp();
-                        System.out.format("Request: %s @ %dW\n", clientAddr.toString(), powerRequested);
-                        addRequest(clientAddr, packetsRequested, powerRequested);
-                        log.logRequest(clientAddr, powerRequested, packetsRequested, clientTime);
+//                        printTimestamp();
+//                        System.out.format("Request: %s @ %dW\n", clientAddr.toString(), powerRequested);
+                        addRequest(clientAddr, powerRequested);
+                        log.logRequest(clientAddr, powerRequested, clientTime);
                     }
                     else {
                         System.err.println("Invalid request packet of length " + packet.getLength());
@@ -113,21 +112,39 @@ public class PowerServer {
     }
     
     // Decide if we want to authorize a power request
-    private void addRequest(InetAddress clientAddr, int packetsRequested, int powerRequested) {
-        if (packetsRequested > 0) {
-            // If the client already exists and has an active grant, then add this request automatically
-            if (clientMap.containsKey(clientAddr) && !clientMap.get(clientAddr).isEmpty()) {
-                PowerRequest newPowerRequest = new PowerRequest(packetsRequested, powerRequested);
-                newPowerRequest.setPowerGranted(clientMap.get(clientAddr).peek().getPowerGranted());
-                clientMap.get(clientAddr).add(newPowerRequest);
-            } else {
-                Queue<PowerRequest> requestQueue = new LinkedList<PowerRequest>();
-                PowerRequest powerRequest = new PowerRequest(packetsRequested, powerRequested);
-                requestQueue.add(powerRequest);
-                clientMap.put(clientAddr, requestQueue);
-            }
+    private void addRequest(InetAddress clientAddr, int powerRequested) {
+        // If the client already exists and has an active grant, then add this request automatically
+        if (clientMap.containsKey(clientAddr) && !clientMap.get(clientAddr).isEmpty()) {
+            PowerRequest newPowerRequest = new PowerRequest(powerRequested);
+            newPowerRequest.setPowerGranted(clientMap.get(clientAddr).peek().getPowerGranted());
+            clientMap.get(clientAddr).add(newPowerRequest);
         } else {
-            System.err.println("Invalid number of packets requested.");
+            Queue<PowerRequest> requestQueue = new LinkedList<>();
+            PowerRequest powerRequest = new PowerRequest(powerRequested);
+            requestQueue.add(powerRequest);
+            clientMap.put(clientAddr, requestQueue);
+        }
+    }
+
+    // Iterate over the client map, removing inactive clients from the current load total
+    private void checkForInactiveClients() {
+        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
+            PowerRequest powerRequest = client.getValue().peek();
+            if (powerRequest != null) {
+                if (powerRequest.getPowerGranted() > 0) {
+                    // If the request has been granted, pop it off the queue
+                    int powerGranted = powerRequest.getPowerGranted();
+                    client.getValue().poll();
+                    // And if this satisfies the client's request, update the current load
+                    if (client.getValue().isEmpty()) {
+                        currentLoadWatts -= powerGranted;
+                        if (client.getKey() == priorityClient) {
+                            System.out.println("Changing priority");
+                            incrementPriorityClient();
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -144,43 +161,30 @@ public class PowerServer {
             if (i == 0) {
                 priorityClient = client.getKey();
             }
-            int powerRequested = 0;
             int powerGranted = 0;
-            int packetsRemaining = 0;
             PowerRequest powerRequest = client.getValue().peek();
             if (powerRequest != null) {
-                powerRequested = powerRequest.getPowerRequested();
+                int powerRequested = powerRequest.getPowerRequested();
                 powerGranted = powerRequest.getPowerGranted();
-                // New (or continuing) request?
-                if (powerRequest.getPacketsRemaining() == 0) {
-                    int packetsRequested = powerRequest.getPacketsRequested();
-                    if (packetsRequested > 0) {
-                        // We have to ignore any power this client may already be using
-                        currentLoadWatts -= powerGranted;
-                        if ((powerRequested == PowerRequest.POWER_BOTH) && (currentLoadWatts + PowerRequest.POWER_BOTH <= maxLoadWatts)) {
-                            powerGranted = PowerRequest.POWER_BOTH;
-                        } else if ((powerRequested >= PowerRequest.POWER_HIGH) && (currentLoadWatts + PowerRequest.POWER_HIGH <= maxLoadWatts)) {
-                            powerGranted = PowerRequest.POWER_HIGH;
-                        } else if (currentLoadWatts + PowerRequest.POWER_LOW <= maxLoadWatts) {
-                            powerGranted = PowerRequest.POWER_LOW;
-                        }
-                        if (powerGranted > 0) {
-                            currentLoadWatts += powerGranted;
-                            powerRequest.setPowerGranted(powerGranted);
-                            powerRequest.setPacketsRemaining(packetsRequested);
-                            powerRequest.setPacketsRequested(0);
-                        }
-                    }
+                // We have to ignore any power this client may already be using
+                currentLoadWatts -= powerGranted;
+                if ((powerRequested == PowerRequest.POWER_BOTH) && (currentLoadWatts + PowerRequest.POWER_BOTH <= maxLoadWatts)) {
+                    powerGranted = PowerRequest.POWER_BOTH;
+                } else if ((powerRequested >= PowerRequest.POWER_HIGH) && (currentLoadWatts + PowerRequest.POWER_HIGH <= maxLoadWatts)) {
+                    powerGranted = PowerRequest.POWER_HIGH;
+                } else if (currentLoadWatts + PowerRequest.POWER_LOW <= maxLoadWatts) {
+                    powerGranted = PowerRequest.POWER_LOW;
                 }
-                // Decrement the number of packets remaining in preparation for sendGrantPacket
-                powerRequest.decrementPacketsRemaining(); // Does not decrement below zero
-                packetsRemaining = powerRequest.getPacketsRemaining();
+                if (powerGranted > 0) {
+                    currentLoadWatts += powerGranted;
+                    powerRequest.setPowerGranted(powerGranted);
+                }
             }
             // If we're at the end of the list, wrap around to the beginning
             if (!it.hasNext()) {
                 it = clientMap.entrySet().iterator();
             }
-            log.logGrant(client.getKey(), powerGranted, packetsRemaining, 0);
+            log.logGrant(client.getKey(), powerGranted, 0);
         }
     }
     
@@ -201,28 +205,6 @@ public class PowerServer {
         } catch (IOException e) {
             System.err.println("IOException: " + e.getMessage());
             System.exit(1);
-        }
-    }
-
-    // Iterate over the client map, updating grant amounts and removing inactive clients from the current load total
-    private void checkForInactiveClients() {
-        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
-            PowerRequest powerRequest = client.getValue().peek();
-            if (powerRequest != null) {
-                if (powerRequest.getPacketsRemaining() == 0 && powerRequest.getPacketsRequested() == 0) {
-                    // If the request is empty, pop it off the queue
-                    int powerGranted = powerRequest.getPowerGranted();
-                    client.getValue().poll();
-                    // And if this satisfies the client's request, update the current load
-                    if (client.getValue().isEmpty()) {
-                        currentLoadWatts -= powerGranted;
-                        if (client.getKey() == priorityClient) {
-                            System.out.println("Changing priority");
-                            incrementPriorityClient();
-                        }
-                    }
-                }
-            }
         }
     }
 
