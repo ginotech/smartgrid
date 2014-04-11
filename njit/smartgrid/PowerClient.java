@@ -11,7 +11,7 @@ import java.util.*;
 public class PowerClient {
 
     private static final boolean DEBUG = false;
-    private static final boolean SHOW_EMPTY_GRANTS = false;
+    private static final boolean HIDE_EMPTY_GRANTS = true;
     private static final boolean RASPBERRY_PI = true;
     private static final int HIGH_POWER_PIN = 7;
     private static final int LOW_POWER_PIN = 12;
@@ -24,10 +24,11 @@ public class PowerClient {
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
-    private boolean outputEnabled = false;
+    private boolean outputState = false;
     private static boolean autoGenerate = false;
     private int packetsRequested = 0;
     private int powerRequested = 0;
+    private boolean suppressTerminalOutput = false;
 
     private double p, q;
     private PowerLog log;
@@ -105,17 +106,19 @@ public class PowerClient {
                         // Get the auth values
                         int powerGranted = packetData.getInt();
                         int packetsRemaining = packetData.getInt();
-                        Time time = new Time(System.currentTimeMillis());
-                        if (outputEnabled || SHOW_EMPTY_GRANTS) {
+                        if (powerGranted > 0 || !suppressTerminalOutput) {
                             printTimestamp();
                             System.out.format("Received authorization for %dW (%d remaining)\n", powerGranted, packetsRemaining);
+                            suppressTerminalOutput = false;
                         }
                         if (packetsRemaining == 1) {
                             pendingRequest = false;
-                            generateRequest();
+                            if (autoGenerate) {
+                                generateRequest();
+                            }
                         }
                         if (powerGranted > 0) {
-                            outputEnabled = true;
+                            outputState = true;
                             packetsRequested--;
                             if (RASPBERRY_PI) {
                                 if (powerGranted == PowerRequest.POWER_HIGH) {
@@ -132,7 +135,10 @@ public class PowerClient {
                                 }
                             }
                         } else {
-                            outputEnabled = false;
+                            outputState = false;
+                            if (HIDE_EMPTY_GRANTS) {
+                                suppressTerminalOutput = true;
+                            }
                             if (RASPBERRY_PI) {
                                 pinWrite(HIGH_POWER_PIN, false);
                                 pinWrite(LOW_POWER_PIN, false);
@@ -210,7 +216,7 @@ public class PowerClient {
         if (DEBUG) { System.out.format("statechange=%f, p=%f, q=%f\n", stateChangeRand, p, q); }
 
         // Currently on?
-        if (outputEnabled) {
+        if (outputState) {
             // Turn off?
             if (stateChangeRand <= p) {
                 printTimestamp();

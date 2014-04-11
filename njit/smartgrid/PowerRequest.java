@@ -36,6 +36,10 @@ public class PowerRequest {
         this.packetsRemaining = packetsRemaining;
     }
 
-    public void decrementPacketsRemaining() { this.packetsRemaining--; }
+    public void decrementPacketsRemaining() {
+        if (packetsRemaining > 0) {
+            this.packetsRemaining--;
+        }
+    }
 
 }

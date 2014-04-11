@@ -83,7 +83,7 @@ public class PowerLog {
         }
     }
 
-    public void logGrant(InetAddress clientAddress, int powerGranted, int packetsGranted, long serverTimestamp) {
+    public void logGrant(InetAddress clientAddress, int powerGranted, int packetsRemaining, long serverTimestamp) {
         String logString = "GRA" + DELIMITER;
         if (HUMAN_READABLE) {
             Timestamp time = new Timestamp(System.currentTimeMillis());
@@ -101,7 +101,7 @@ public class PowerLog {
         }
         logString += clientAddress.getHostAddress() + DELIMITER;
         logString += powerGranted + "W" + DELIMITER;
-        logString += packetsGranted;
+        logString += packetsRemaining;
         try {
             bw.write(logString, 0, logString.length());
             bw.newLine();

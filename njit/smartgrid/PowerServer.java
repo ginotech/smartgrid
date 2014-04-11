@@ -5,11 +5,9 @@ import java.io.IOException;
 import java.sql.Time;
 import java.util.*;
 
-// TODO: Implement list of PowerRequests as value of clientMap entries? (would allow requests for non-immediate grants)
-
 public class PowerServer {
     
-    private static final int GRANT_PERIOD = 1000;    // How often to send grant packets (milliseconds)
+    static final int GRANT_PERIOD = 1000;    // How often to send grant packets (milliseconds)
     static final int SERVER_PORT = 1234;                // Port on which to listen for requests / destination port for grants
     static final int REQUEST_PACKET_LENGTH = 16;        // Size of the request packet in bytes
 
@@ -140,11 +138,10 @@ public class PowerServer {
             // Is this the priority client?
             if (i == 0) {
                 priorityClient = client.getKey();
-                printTimestamp();
-                System.out.print("Priority: " + client.getKey().getHostAddress() + ", ");
             }
             int powerRequested = 0;
             int powerGranted = 0;
+            int packetsRemaining = 0;
             PowerRequest powerRequest = client.getValue().peek();
             if (powerRequest != null) {
                 powerRequested = powerRequest.getPowerRequested();
@@ -171,13 +168,14 @@ public class PowerServer {
                     }
                 }
                 // Decrement the number of packets remaining in preparation for sendGrantPacket
-                powerRequest.decrementPacketsRemaining();
+                powerRequest.decrementPacketsRemaining(); // Does not decrement below zero
+                packetsRemaining = powerRequest.getPacketsRemaining();
             }
             // If we're at the end of the list, wrap around to the beginning
             if (!it.hasNext()) {
                 it = clientMap.entrySet().iterator();
             }
-            log.logGrant(client.getKey(), powerGranted, 0, 0);
+            log.logGrant(client.getKey(), powerGranted, packetsRemaining, 0);
         }
     }
     
@@ -187,6 +185,7 @@ public class PowerServer {
         try (DatagramSocket sendSocket = new DatagramSocket()) {
             PowerGrantPacket packet = new PowerGrantPacket(destAddr, clientMap);
             sendSocket.send(packet.getPacket());
+            printTimestamp();
             System.out.format("Load: %dW (max %dW)\n", currentLoadWatts, maxLoadWatts);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
