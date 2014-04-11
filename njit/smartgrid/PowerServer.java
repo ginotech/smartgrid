@@ -204,7 +204,7 @@ public class PowerServer {
         for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
             PowerRequest powerRequest = client.getValue().peek();
             if (powerRequest != null) {
-                if (powerRequest.getPacketsRemaining() == 0) {
+                if (powerRequest.getPacketsRemaining() == 0 && powerRequest.getPacketsRequested() == 0) {
                     // If the request is empty, pop it off the queue
                     int powerGranted = powerRequest.getPowerGranted();
                     client.getValue().poll();
