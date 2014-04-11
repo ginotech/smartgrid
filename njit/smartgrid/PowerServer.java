@@ -57,8 +57,8 @@ public class PowerServer {
     public void start() {
         log.logString(String.format("Server: %s:%d, Broadcast: %s:%d", myAddr.getHostAddress(), SERVER_PORT,
                 destAddr.getHostAddress(), PowerGrantPacket.CLIENT_PORT));
-        log.logString(String.format("Grant period (ms): %d", GRANT_PERIOD));
-        log.logString(String.format("Capacity: %d, Available power levels: %d/%d/%d", maxLoadWatts, PowerRequest.POWER_BOTH,
+        log.logString(String.format("Grant period: %dms", GRANT_PERIOD));
+        log.logString(String.format("Capacity: %dW, Available power levels: %dW/%dW/%dW", maxLoadWatts, PowerRequest.POWER_BOTH,
                 PowerRequest.POWER_HIGH, PowerRequest.POWER_LOW));
         // Sends a grant packet every GRANT_PERIOD (ms) comprised of all
         // requests since last grand packet was sent
@@ -94,7 +94,7 @@ public class PowerServer {
                         int powerRequested = packetData.getInt();
                         int packetsRequested = packetData.getInt();
                         printTimestamp();
-                        System.out.format("Request: %s / %dW\n", clientAddr.toString(), powerRequested);
+                        System.out.format("Request: %s @ %dW\n", clientAddr.toString(), powerRequested);
                         addRequest(clientAddr, packetsRequested, powerRequested);
                         log.logRequest(clientAddr, powerRequested, packetsRequested, clientTime);
                     }
