@@ -52,6 +52,16 @@ public class PowerLog {
 
     }
 
+    public void logString(String msg) {
+        try {
+            bw.write(msg, 0, msg.length());
+            bw.newLine();
+            bw.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     public void logRequest(InetAddress clientAddress, int powerRequested, int packetsRequested,
                            long clientTimestamp) {
         String logString = "REQ" + DELIMITER;
@@ -76,9 +86,9 @@ public class PowerLog {
             }
 
         }
-        logString += clientAddress.getHostAddress() + DELIMITER;    // Client IP address
-        logString += powerRequested + "W" + DELIMITER;              // Power requested
-        logString += packetsRequested + "s";                       // Number of packets requested
+        logString += clientAddress.getHostAddress() + DELIMITER; // Client IP address
+        logString += powerRequested + "W" + DELIMITER;           // Power requested
+        logString += packetsRequested;                           // Number of packets requested
 
         try {
             bw.write(logString, 0, logString.length());
@@ -112,8 +122,10 @@ public class PowerLog {
             }
         }
         logString += clientAddress.getHostAddress() + DELIMITER;
-        logString += powerGranted + "W" + DELIMITER;
-        logString += packetsRemaining;
+        logString += powerGranted + "W";
+        if (!isServer) {
+            logString += DELIMITER + packetsRemaining;
+        }
         try {
             bw.write(logString, 0, logString.length());
             bw.newLine();
