@@ -68,6 +68,7 @@ public class PowerServer {
                 if (!clientMap.isEmpty()) {
                     checkForInactiveClients();
                     grantPower();       // Grant more requests, if the capacity exists
+                    removeDeniedRequests();
                 }
                 sendGrantPacket();  // Send grant broadcast
             }
