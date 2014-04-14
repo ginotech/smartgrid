@@ -208,6 +208,16 @@ public class PowerServer {
         }
     }
 
+    public void removeDeniedRequests() {
+        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
+            PowerRequest powerRequest = client.getValue().peek();
+            if (powerRequest != null && powerRequest.getPowerGranted() == 0) {
+                // If the request hasn't been granted, pop it off the queue
+                client.getValue().poll();
+            }
+        }
+    }
+
     private void incrementPriorityClient() {
         priorityClientIndex = (priorityClientIndex + 1) % clientMap.size();
     }
