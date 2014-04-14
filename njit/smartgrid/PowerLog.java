@@ -85,7 +85,7 @@ public class PowerLog {
             }
             logString += clientAddress.getHostAddress() + DELIMITER; // Client IP address
         }
-        logString += powerRequested + "W";           // Power requested
+        logString += powerRequested;           // Power requested
 
         try {
             bw.write(logString, 0, logString.length());
@@ -120,7 +120,7 @@ public class PowerLog {
         } else {
             logString += clientAddress.getHostAddress() + DELIMITER;
         }
-        logString += powerGranted + "W";
+        logString += powerGranted;
         try {
             bw.write(logString, 0, logString.length());
             bw.newLine();
