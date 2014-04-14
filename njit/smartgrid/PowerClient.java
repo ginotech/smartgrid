@@ -30,8 +30,6 @@ public class PowerClient {
     private double p, q;
     private PowerLog log;
 
-    private boolean pendingRequest = false;
-
     /**
      * @param args the command line arguments
      */
@@ -98,7 +96,6 @@ public class PowerClient {
                             suppressTerminalOutput = false;
                         }
                         if (powerGranted > 0) {
-                            pendingRequest = false;
                             // If we have a nonzero grant, turn on some lights
                             outputState = true;
                             if (RASPBERRY_PI) {
@@ -132,9 +129,7 @@ public class PowerClient {
                         packetData.getInt();   // skip the auth fields if they aren't ours
                     }
                 }
-                if (!pendingRequest) {
-                    generateRequest();
-                }
+                generateRequest();
 
             }
         } catch (UnknownHostException e) {
@@ -151,7 +146,6 @@ public class PowerClient {
 
     // Send a request packet to the server that contains a timestamp, power level, and # of packets requested
     public void requestPower(int power) {
-        pendingRequest = true;
         if ((power == PowerRequest.POWER_BOTH) || (power == PowerRequest.POWER_HIGH) || (power == PowerRequest.POWER_LOW)) {
             this.powerRequested = power;
         } else {
