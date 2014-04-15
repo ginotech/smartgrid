@@ -26,7 +26,7 @@ public class PowerClient {
     private boolean outputState = false;
     private int powerRequested = 0;
     private boolean suppressTerminalOutput = false;
-    private boolean firstGrant = false;
+    private boolean firstGrant = true;
 
     private double p, q;
     private PowerLog log;
