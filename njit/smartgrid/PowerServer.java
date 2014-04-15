@@ -115,8 +115,10 @@ public class PowerServer {
     // Decide if we want to authorize a power request
     private void addRequest(InetAddress clientAddr, int powerRequested) {
         // If the client already exists and has an active grant, then add this request automatically
+        // FIXME: non-empty request list does not guarantee an active grant. should check powergranted value also.
         if (clientMap.containsKey(clientAddr) && !clientMap.get(clientAddr).isEmpty()) {
             PowerRequest newPowerRequest = new PowerRequest(powerRequested);
+            // FIXME: what if powerRequested of this request != powerGranted of last request?
             newPowerRequest.setPowerGranted(clientMap.get(clientAddr).peek().getPowerGranted());
             clientMap.get(clientAddr).add(newPowerRequest);
         } else {
@@ -137,6 +139,7 @@ public class PowerServer {
                     int powerGranted = powerRequest.getPowerGranted();
                     client.getValue().poll();
                     // And if this satisfies the client's request, update the current load
+                    // FIXME: if queue isn't empty, check to see if leading powerGranted value is 0
                     if (client.getValue().isEmpty()) {
                         currentLoadWatts -= powerGranted;
                         if (client.getKey() == priorityClient) {

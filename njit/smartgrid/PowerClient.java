@@ -124,13 +124,12 @@ public class PowerClient {
                             }
                         }
                         log.logGrant(myAddr, powerGranted, serverTime);
+                        generateRequest();
                         break;
                     } else {
                         packetData.getInt();   // skip the auth fields if they aren't ours
                     }
                 }
-                generateRequest();
-
             }
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
@@ -153,13 +152,13 @@ public class PowerClient {
         }
         printTimestamp();
         System.out.println("Requesting " + powerRequested + "W");
+        log.logRequest(myAddr, powerRequested, 0);
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
             requestBuffer.putInt(powerRequested);
             DatagramPacket requestPacket = new DatagramPacket(requestBuffer.array(), REQUEST_PACKET_LENGTH, serverAddr, SERVER_PORT);
             sendSocket.send(requestPacket);
-            log.logRequest(myAddr, powerRequested, 0);
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
             System.exit(1);
