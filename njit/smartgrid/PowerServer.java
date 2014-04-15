@@ -15,7 +15,7 @@ public class PowerServer {
     private InetAddress destAddr = null;
     private int currentLoadWatts = 0;
     private final int maxLoadWatts;
-    private Map<InetAddress, Queue<PowerRequest>> clientMap;
+    private Map<InetAddress, List<PowerRequest>> clientMap;
     private int priorityClientIndex = 0;
     private InetAddress priorityClient;
     private PowerLog log;
@@ -119,27 +119,27 @@ public class PowerServer {
         if (clientMap.containsKey(clientAddr) && !clientMap.get(clientAddr).isEmpty()) {
             PowerRequest newPowerRequest = new PowerRequest(powerRequested);
             // FIXME: what if powerRequested of this request != powerGranted of last request?
-            newPowerRequest.setPowerGranted(clientMap.get(clientAddr).peek().getPowerGranted());
+            newPowerRequest.setPowerGranted(clientMap.get(clientAddr).get(0).getPowerGranted());
             clientMap.get(clientAddr).add(newPowerRequest);
         } else {
-            Queue<PowerRequest> requestQueue = new LinkedList<>();
+            List<PowerRequest> requestList = new LinkedList<>();
             PowerRequest powerRequest = new PowerRequest(powerRequested);
-            requestQueue.add(powerRequest);
-            clientMap.put(clientAddr, requestQueue);
+            requestList.add(powerRequest);
+            clientMap.put(clientAddr, requestList);
         }
     }
 
     // Iterate over the client map, removing inactive clients from the current load total
     private void checkForInactiveClients() {
-        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
-            PowerRequest powerRequest = client.getValue().peek();
+        for (Map.Entry<InetAddress, List<PowerRequest>> client : clientMap.entrySet()) {
+            PowerRequest powerRequest = client.getValue().get(0);
             if (powerRequest != null) {
                 if (powerRequest.getPowerGranted() > 0) {
-                    // If the request has been granted, pop it off the queue
+                    // If the request has been granted, remove it from the list
                     int powerGranted = powerRequest.getPowerGranted();
-                    client.getValue().poll();
+                    client.getValue().remove(0);
                     // And if this satisfies the current request, update the load total
-                    if (client.getValue().isEmpty() || client.getValue().peek().getPowerGranted() == 0) {
+                    if (client.getValue().isEmpty() || client.getValue().get(0).getPowerGranted() == 0) {
                         currentLoadWatts -= powerGranted;
                         if (client.getKey() == priorityClient) {
                             System.out.println("Changing priority");
@@ -153,19 +153,19 @@ public class PowerServer {
 
     public void grantPower() {
         // Start iterating through the client list, beginning with the current priority client
-        Iterator<Map.Entry<InetAddress, Queue<PowerRequest>>> it  = clientMap.entrySet().iterator();
+        Iterator<Map.Entry<InetAddress, List<PowerRequest>>> it  = clientMap.entrySet().iterator();
         // Here we need to fast-forward the iterator to get to the priority client
         for (int i = 0; i < priorityClientIndex; i++) {
             it.next();
         }
         for (int i = 0; i < clientMap.size(); i++) {
-            Map.Entry<InetAddress, Queue<PowerRequest>> client = it.next();
+            Map.Entry<InetAddress, List<PowerRequest>> client = it.next();
             // Is this the priority client?
             if (i == 0) {
                 priorityClient = client.getKey();
             }
             int powerGranted = 0;
-            PowerRequest powerRequest = client.getValue().peek();
+            PowerRequest powerRequest = client.getValue().get(0);
             if (powerRequest != null) {
                 int powerRequested = powerRequest.getPowerRequested();
                 powerGranted = powerRequest.getPowerGranted();
@@ -212,11 +212,11 @@ public class PowerServer {
     }
 
     public void removeDeniedRequests() {
-        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
-            PowerRequest powerRequest = client.getValue().peek();
+        for (Map.Entry<InetAddress, List<PowerRequest>> client : clientMap.entrySet()) {
+            PowerRequest powerRequest = client.getValue().get(0);
             if (powerRequest != null && powerRequest.getPowerGranted() == 0) {
-                // If the request hasn't been granted, pop it off the queue
-                client.getValue().poll();
+                // If the request hasn't been granted, remove it from the list
+                client.getValue().remove(0);
             }
         }
     }

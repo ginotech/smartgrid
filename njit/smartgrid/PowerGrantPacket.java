@@ -21,7 +21,7 @@ public class PowerGrantPacket {
     }
     
     // Constructor (send)
-    public PowerGrantPacket(InetAddress destAddr, Map<InetAddress, Queue<PowerRequest>> clientMap) throws UnknownHostException {
+    public PowerGrantPacket(InetAddress destAddr, Map<InetAddress, List<PowerRequest>> clientMap) throws UnknownHostException {
         // Check to make sure we have a valid number of clients
         // (non-negative and less than the maximum)
         final int numClients = clientMap.size();
@@ -31,7 +31,7 @@ public class PowerGrantPacket {
         // Build the packet. Begin with a timestamp from the server, then add clients
 	    ByteBuffer packetData = ByteBuffer.allocate(PKT_SIZE);
         packetData.putLong(System.currentTimeMillis());
-        for (Map.Entry<InetAddress, Queue<PowerRequest>> client : clientMap.entrySet()) {
+        for (Map.Entry<InetAddress, List<PowerRequest>> client : clientMap.entrySet()) {
             // Copy client address into packet data buffer
             InetAddress clientAddr = client.getKey();
             packetData.put(clientAddr.getAddress());            
@@ -39,7 +39,7 @@ public class PowerGrantPacket {
             if (client.getValue().isEmpty()) {
                 packetData.putInt(0);
             } else {
-                packetData.putInt(client.getValue().peek().getPowerGranted());
+                packetData.putInt(client.getValue().get(0).getPowerGranted());
             }
         }
         // Write four boundary bytes so we know where the real data stops
