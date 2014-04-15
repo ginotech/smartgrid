@@ -132,8 +132,8 @@ public class PowerServer {
     // Iterate over the client map, removing inactive clients from the current load total
     private void checkForInactiveClients() {
         for (Map.Entry<InetAddress, List<PowerRequest>> client : clientMap.entrySet()) {
-            PowerRequest powerRequest = client.getValue().get(0);
-            if (powerRequest != null) {
+            if (!client.getValue().isEmpty()) {
+                PowerRequest powerRequest = client.getValue().get(0);
                 if (powerRequest.getPowerGranted() > 0) {
                     // If the request has been granted, remove it from the list
                     int powerGranted = powerRequest.getPowerGranted();
@@ -165,8 +165,8 @@ public class PowerServer {
                 priorityClient = client.getKey();
             }
             int powerGranted = 0;
-            PowerRequest powerRequest = client.getValue().get(0);
-            if (powerRequest != null) {
+            if (!client.getValue().isEmpty()) {
+                PowerRequest powerRequest = client.getValue().get(0);
                 int powerRequested = powerRequest.getPowerRequested();
                 powerGranted = powerRequest.getPowerGranted();
                 // We have to ignore any power this client may already be using
