@@ -26,6 +26,7 @@ public class PowerClient {
     private boolean outputState = false;
     private int powerRequested = 0;
     private boolean suppressTerminalOutput = false;
+    private boolean firstGrant = false;
 
     private double p, q;
     private PowerLog log;
@@ -57,7 +58,6 @@ public class PowerClient {
             final double onPercentage = Double.parseDouble(args[2]);    // Average on length
             final double cycleLength = Double.parseDouble(args[3]);
             powerClient.calculateProbabilities(onPercentage, cycleLength);
-            powerClient.generateRequest();  // Generate initial request
             powerClient.listenForGrant();
         }
         System.out.println("My address is " + myAddr.getHostAddress());
@@ -77,6 +77,15 @@ public class PowerClient {
                 ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                 // Build the packet back into a map of address and auth values
                 long serverTime = packetData.getLong();
+                if (firstGrant) {
+                    new Timer().schedule(new TimerTask() {
+                        @Override
+                        public void run() {
+                            generateRequest();
+                        }
+                    }, GRANT_PERIOD);
+                    firstGrant = false;
+                }
                 while (packetData.remaining() >= 8) {
                     // Get the address
                     byte[] addrArray = new byte[4];
@@ -124,7 +133,6 @@ public class PowerClient {
                             }
                         }
                         log.logGrant(myAddr, powerGranted, serverTime);
-                        generateRequest();
                         break;
                     } else {
                         packetData.getInt();   // skip the auth fields if they aren't ours
