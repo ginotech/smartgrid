@@ -138,9 +138,8 @@ public class PowerServer {
                     // If the request has been granted, pop it off the queue
                     int powerGranted = powerRequest.getPowerGranted();
                     client.getValue().poll();
-                    // And if this satisfies the client's request, update the current load
-                    // FIXME: if queue isn't empty, check to see if leading powerGranted value is 0
-                    if (client.getValue().isEmpty()) {
+                    // And if this satisfies the current request, update the load total
+                    if (client.getValue().isEmpty() || client.getValue().peek().getPowerGranted() == 0) {
                         currentLoadWatts -= powerGranted;
                         if (client.getKey() == priorityClient) {
                             System.out.println("Changing priority");
