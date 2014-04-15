@@ -129,8 +129,8 @@ public class PowerClient {
                     } else {
                         packetData.getInt();   // skip the auth fields if they aren't ours
                     }
-                    generateRequest();
                 }
+                generateRequest();
             }
         } catch (UnknownHostException e) {
             System.err.println("UnknownHostException: " + e.getMessage());
