@@ -26,7 +26,7 @@ public class PowerClient {
     private boolean outputState = false;
     private int powerRequested = 0;
     private boolean suppressTerminalOutput = false;
-    private boolean firstGrant = true;
+    private long lastRequestTime = 0;
 
     private double p, q;
     private PowerLog log;
@@ -58,6 +58,7 @@ public class PowerClient {
             final double onPercentage = Double.parseDouble(args[2]);    // Average on length
             final double cycleLength = Double.parseDouble(args[3]);
             powerClient.calculateProbabilities(onPercentage, cycleLength);
+            powerClient.generateRequest();
             powerClient.listenForGrant();
         }
         System.out.println("My address is " + myAddr.getHostAddress());
@@ -77,15 +78,6 @@ public class PowerClient {
                 ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                 // Build the packet back into a map of address and auth values
                 long serverTime = packetData.getLong();
-                if (firstGrant) {
-                    new Timer().schedule(new TimerTask() {
-                        @Override
-                        public void run() {
-                            generateRequest();
-                        }
-                    }, 0, GRANT_PERIOD);
-                    firstGrant = false;
-                }
                 while (packetData.remaining() >= 8) {
                     // Get the address
                     byte[] addrArray = new byte[4];
@@ -133,6 +125,7 @@ public class PowerClient {
                             }
                         }
                         log.logGrant(myAddr, powerGranted, serverTime);
+                        generateRequest();
                         break;
                     } else {
                         packetData.getInt();   // skip the auth fields if they aren't ours
@@ -153,6 +146,7 @@ public class PowerClient {
 
     // Send a request packet to the server that contains a timestamp, power level, and # of packets requested
     public void requestPower(int power) {
+        lastRequestTime = System.currentTimeMillis();
         if ((power == PowerRequest.POWER_BOTH) || (power == PowerRequest.POWER_HIGH) || (power == PowerRequest.POWER_LOW)) {
             this.powerRequested = power;
         } else {
@@ -191,6 +185,9 @@ public class PowerClient {
     }
 
     private void generateRequest() {
+        if (System.currentTimeMillis() < lastRequestTime + GRANT_PERIOD * 0.8) {
+            return;
+        }
         Random rand = new Random();
         double stateChangeRand = rand.nextDouble();
         double powerLevelRand = rand.nextDouble();
