@@ -213,10 +213,12 @@ public class PowerServer {
 
     public void removeDeniedRequests() {
         for (Map.Entry<InetAddress, List<PowerRequest>> client : clientMap.entrySet()) {
-            PowerRequest powerRequest = client.getValue().get(0);
-            if (powerRequest != null && powerRequest.getPowerGranted() == 0) {
-                // If the request hasn't been granted, remove it from the list
-                client.getValue().remove(0);
+            if (!client.getValue().isEmpty()) {
+                PowerRequest powerRequest = client.getValue().get(0);
+                if (powerRequest != null && powerRequest.getPowerGranted() == 0) {
+                    // If the request hasn't been granted, remove it from the list
+                    client.getValue().remove(0);
+                }
             }
         }
     }
