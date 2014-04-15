@@ -83,7 +83,7 @@ public class PowerClient {
                         public void run() {
                             generateRequest();
                         }
-                    }, GRANT_PERIOD);
+                    }, 0, GRANT_PERIOD);
                     firstGrant = false;
                 }
                 while (packetData.remaining() >= 8) {
