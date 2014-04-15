@@ -125,11 +125,11 @@ public class PowerClient {
                             }
                         }
                         log.logGrant(myAddr, powerGranted, serverTime);
-                        generateRequest();
                         break;
                     } else {
                         packetData.getInt();   // skip the auth fields if they aren't ours
                     }
+                    generateRequest();
                 }
             }
         } catch (UnknownHostException e) {
