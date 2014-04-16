@@ -10,7 +10,7 @@ import java.util.Date;
 
 public class PowerLog {
 
-    private static final String DELIMITER = ", ";
+    private static final String DELIMITER = ",";
     private static final boolean HUMAN_READABLE = true;
 
     private boolean isServer = false;
