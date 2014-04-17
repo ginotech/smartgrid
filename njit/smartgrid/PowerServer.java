@@ -6,8 +6,7 @@ import java.sql.Time;
 import java.util.*;
 
 public class PowerServer {
-    
-    static final int GRANT_PERIOD = 1000;    // How often to send grant packets (milliseconds)
+
     static final int SERVER_PORT = 1234;                // Port on which to listen for requests / destination port for grants
     static final int REQUEST_PACKET_LENGTH = 12;        // Size of the request packet in bytes
 
@@ -15,6 +14,7 @@ public class PowerServer {
     private InetAddress destAddr = null;
     private int currentLoadWatts = 0;
     private final int maxLoadWatts;
+    private int grantPeriod;    // How often to send grant packets (milliseconds)
     private Map<InetAddress, List<PowerRequest>> clientMap;
     private int priorityClientIndex = 0;
     private InetAddress priorityClient;
@@ -24,8 +24,8 @@ public class PowerServer {
      * @param args the command line arguments
      */
     public static void main(String[] args) throws IOException {
-        if (args.length < 3) {
-            System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <capacity>");
+        if (args.length < 4) {
+            System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <grant period (ms)> <capacity>");
             if (System.getProperty("os.name").contains("Linux")) {
                 System.out.println("IMPORTANT: export _JAVA_OPTIONS=\"-Djava.net.preferIPv4Stack=true\"");
             }
@@ -37,17 +37,19 @@ public class PowerServer {
             System.err.println("Invalid server address or broadcast address.");
             System.exit(1);
         }
-        final int maxLoad = Integer.parseInt(args[2]);
+        final int grantPeriod = Integer.parseInt(args[2]);
+        final int maxLoad = Integer.parseInt(args[3]);
         System.out.println("Broadcasting to " + destAddr.getHostAddress());
         System.out.println("Capacity: " + maxLoad + "W");
 
-        PowerServer powerServer = new PowerServer(myAddr, destAddr, maxLoad);
+        PowerServer powerServer = new PowerServer(myAddr, destAddr, grantPeriod, maxLoad);
         powerServer.start();
     }
 
-    public PowerServer(InetAddress myAddr, InetAddress destAddr, int maxLoadWatts) {
+    public PowerServer(InetAddress myAddr, InetAddress destAddr, int grantPeriod, int maxLoadWatts) {
         this.myAddr = myAddr;
         this.destAddr = destAddr;
+        this.grantPeriod = grantPeriod;
         this.maxLoadWatts = maxLoadWatts;
 
         this.log = new PowerLog(true);
@@ -57,10 +59,10 @@ public class PowerServer {
     public void start() {
         log.logString(String.format("Server: %s:%d, Broadcast: %s:%d", myAddr.getHostAddress(), SERVER_PORT,
                 destAddr.getHostAddress(), PowerGrantPacket.CLIENT_PORT));
-        log.logString(String.format("Grant period: %dms", GRANT_PERIOD));
+        log.logString(String.format("Grant period: %dms", grantPeriod));
         log.logString(String.format("Capacity: %dW, Available power levels: %dW/%dW/%dW", maxLoadWatts, PowerRequest.POWER_BOTH,
                 PowerRequest.POWER_HIGH, PowerRequest.POWER_LOW));
-        // Sends a grant packet every GRANT_PERIOD (ms) comprised of all
+        // Sends a grant packet every grantPeriod (ms) comprised of all
         // requests since last grand packet was sent
         new Timer().schedule(new TimerTask() {
             @Override
@@ -72,7 +74,7 @@ public class PowerServer {
                 }
                 sendGrantPacket();  // Send grant broadcast
             }
-        }, GRANT_PERIOD, GRANT_PERIOD);
+        }, grantPeriod, grantPeriod);
         listenForRequest();
     }
 
