@@ -19,7 +19,6 @@ public class PowerClient {
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
     static final int REQUEST_PACKET_LENGTH = 12;// Size of the request packet in bytes
-    static final int GRANT_PERIOD = 1000;       // How often to expect grant packets from the server (ms)
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
@@ -27,6 +26,8 @@ public class PowerClient {
     private int powerRequested = 0;
     private boolean suppressTerminalOutput = false;
     private long lastRequestTime = 0;
+    private long grantPeriod = 0;
+    private long minimumRequestSpacing = 0;
 
     private double p, q;
     private PowerLog log;
@@ -89,6 +90,14 @@ public class PowerClient {
                     InetAddress clientAddr = InetAddress.getByAddress(addrArray);
                     // Found our address?
                     if (clientAddr.equals(myAddr)) {
+                        if (grantPeriod == 0) {
+                            if (minimumRequestSpacing == 0) {
+                                minimumRequestSpacing = System.currentTimeMillis();
+                            } else {
+                                grantPeriod = System.currentTimeMillis() - minimumRequestSpacing;
+                                minimumRequestSpacing = (long) (grantPeriod * 0.8);
+                            }
+                        }
                         // Get the auth values
                         int powerGranted = packetData.getInt();
                         if (powerGranted > 0 || !suppressTerminalOutput) {
@@ -175,7 +184,6 @@ public class PowerClient {
 
     private void calculateProbabilities(double rho, int cycleLength) {
         log.logString(String.format("Client: %s, Server: %s", myAddr.getHostAddress(), serverAddr.getHostAddress()));
-        log.logString(String.format("Grant period: %dms", GRANT_PERIOD));
         log.logString(String.format("Auto generation: Enabled"));
         final double beta = cycleLength * rho;
         final double alpha = cycleLength - beta;
@@ -186,7 +194,8 @@ public class PowerClient {
     }
 
     private void generateRequest() {
-        if (System.currentTimeMillis() < lastRequestTime + GRANT_PERIOD * 0.8) {
+        // Prevent rapid-fire requests
+        if (System.currentTimeMillis() < lastRequestTime + minimumRequestSpacing) {
             return;
         }
         Random rand = new Random();
