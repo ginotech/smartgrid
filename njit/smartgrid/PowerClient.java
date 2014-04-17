@@ -52,12 +52,12 @@ public class PowerClient {
         }
 
         if (args.length < 4) {
-            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <on percentage> <cycle length (s)>");
+            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <rho> <cycle length>");
             System.exit(0);
         } else {
-            final double onPercentage = Double.parseDouble(args[2]);    // Average on length
-            final double cycleLength = Double.parseDouble(args[3]);
-            powerClient.calculateProbabilities(onPercentage, cycleLength);
+            final double rho = Double.parseDouble(args[2]);    // Average on length
+            final int cycleLength = Integer.parseInt(args[3]);
+            powerClient.calculateProbabilities(rho, cycleLength);
             powerClient.generateRequest();
             powerClient.listenForGrant();
         }
@@ -173,14 +173,15 @@ public class PowerClient {
         }
     }
 
-    private void calculateProbabilities(double onPercentage, double cycleLength) {
+    private void calculateProbabilities(double rho, int cycleLength) {
         log.logString(String.format("Client: %s, Server: %s", myAddr.getHostAddress(), serverAddr.getHostAddress()));
         log.logString(String.format("Grant period: %dms", GRANT_PERIOD));
         log.logString(String.format("Auto generation: Enabled"));
-        final double beta = cycleLength * onPercentage;
+        final double beta = cycleLength * rho;
         final double alpha = cycleLength - beta;
         p = 1.0 / beta;          // Probability ON -> OFF
         q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
+        log.logString(String.format("Input values: rho=%f, cycle_length=%d", rho, cycleLength));
         log.logString(String.format("beta=%f, alpha=%f, p=%f, q=%f", beta, alpha, p, q));
     }
 
