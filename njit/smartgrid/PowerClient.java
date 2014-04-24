@@ -1,9 +1,13 @@
 package njit.smartgrid;
-import java.net.*;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.SocketException;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.sql.Time;
-import java.util.*;
+import java.util.Random;
 
 // IMPORTANT: need to run export _JAVA_OPTIONS="-Djava.net.preferIPv4Stack=true" or put in ~/.profile
 // TODO: add tracking of requests (list of active requests?)

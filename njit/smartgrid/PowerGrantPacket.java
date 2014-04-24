@@ -1,11 +1,13 @@
 package njit.smartgrid;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.util.*;
-//
+import java.util.List;
+import java.util.Map;
+
 // Wrapper class for DataPacket
 public class PowerGrantPacket {
-    // Number of power packets remaining is 4 bytes
     
     private final DatagramPacket packet;
     
