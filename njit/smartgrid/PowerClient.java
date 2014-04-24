@@ -1,4 +1,5 @@
 package njit.smartgrid;
+
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -39,19 +40,32 @@ public class PowerClient {
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         if (args.length < 4) {
             System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <on percentage> <cycle length (s)>");
             System.exit(0);
         }
         final PowerClient powerClient;
-        final InetAddress myAddr = InetAddress.getByName(args[0]);
-        final InetAddress serverAddr = InetAddress.getByName(args[1]);
+        InetAddress myAddr = null;
+        InetAddress serverAddr = null;
+        try {
+            myAddr = InetAddress.getByName(args[0]);
+            serverAddr = InetAddress.getByName(args[1]);
+        } catch (UnknownHostException e) {
+            System.err.println("Invalid server address or broadcast address.");
+            System.exit(1);
+        }
         powerClient = new PowerClient(myAddr, serverAddr);
 
         if (RASPBERRY_PI) {
-            Runtime.getRuntime().exec("gpio mode " + HIGH_POWER_PIN + " output");
-            Runtime.getRuntime().exec("gpio mode " + LOW_POWER_PIN + " output");
+            try {
+                Runtime.getRuntime().exec("gpio mode " + HIGH_POWER_PIN + " output");
+                Runtime.getRuntime().exec("gpio mode " + LOW_POWER_PIN + " output");
+            } catch (IOException e) {
+                System.err.println("Error executing gpio commands.");
+                e.printStackTrace();
+                System.exit(1);
+            }
             powerClient.pinWrite(HIGH_POWER_PIN, false);
             powerClient.pinWrite(LOW_POWER_PIN, false);
         }

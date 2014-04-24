@@ -1,11 +1,12 @@
 package njit.smartgrid;
+
+import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
-import java.io.IOException;
 import java.sql.Time;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -33,7 +34,7 @@ public class PowerServer {
     /**
      * @param args the command line arguments
      */
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
         if (args.length < 4) {
             System.out.println("Usage: java njit.smartgrid.PowerServer <server address> <broadcast address> <grant period (ms)> <capacity>");
             if (System.getProperty("os.name").contains("Linux")) {
@@ -41,9 +42,12 @@ public class PowerServer {
             }
             System.exit(0);
         }
-        final InetAddress myAddr = InetAddress.getByName(args[0]);
-        final InetAddress destAddr = InetAddress.getByName(args[1]);
-        if (myAddr == null || destAddr == null) {
+        InetAddress myAddr = null;
+        InetAddress destAddr = null;
+        try {
+            myAddr = InetAddress.getByName(args[0]);
+            destAddr = InetAddress.getByName(args[1]);
+        } catch (UnknownHostException e) {
             System.err.println("Invalid server address or broadcast address.");
             System.exit(1);
         }
@@ -105,8 +109,6 @@ public class PowerServer {
                         ByteBuffer packetData = ByteBuffer.wrap(packet.getData());
                         long clientTime = packetData.getLong();
                         int powerRequested = packetData.getInt();
-//                        printTimestamp();
-//                        System.out.format("Request: %s @ %dW\n", clientAddr.toString(), powerRequested);
                         addRequest(clientAddr, powerRequested);
                         log.logRequest(clientAddr, powerRequested, clientTime);
                     }

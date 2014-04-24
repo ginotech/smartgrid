@@ -1,4 +1,5 @@
 package njit.smartgrid;
+
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
