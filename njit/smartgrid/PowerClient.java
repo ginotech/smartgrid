@@ -1,4 +1,6 @@
 package njit.smartgrid;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.*;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -13,8 +15,12 @@ public class PowerClient {
     private static final boolean DEBUG = false;
     private static final boolean HIDE_EMPTY_GRANTS = true;
     private static final boolean RASPBERRY_PI = true;
+
+    // GPIO pin assignments
     private static final int HIGH_POWER_PIN = 7;
     private static final int LOW_POWER_PIN = 12;
+    private static final int HIGH_POWER_SWITCH = 1; // active low (needs pull-up resistor to 3v3)
+    private static final int LOW_POWER_SWITCH = 5;  // active low (needs pull-up resistor to 3v3)
 
     static final int SERVER_PORT = 1234;
     static final int CLIENT_PORT = 1235;
@@ -22,9 +28,12 @@ public class PowerClient {
 
     private InetAddress myAddr;
     private InetAddress serverAddr;
+
+    private boolean manualMode = false;
     private boolean outputState = false;
     private int powerRequested = 0;
     private boolean suppressTerminalOutput = false;
+
     private long lastRequestTime = 0;
     private long grantPeriod = 0;
     private long minimumRequestSpacing = 0;
@@ -37,7 +46,8 @@ public class PowerClient {
      */
     public static void main(String[] args) throws IOException {
         if (args.length < 4) {
-            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <on percentage> <cycle length (s)>");
+            System.out.println("Usage: (automatic) java njit.smartgrid.PowerClient <client address> <server address> <on percentage> <cycle length (s)>");
+            System.out.println("        (manual)   java njit.smartgrid.PowerClient <client address> <server address> manual");
             System.exit(0);
         }
         final PowerClient powerClient;
@@ -52,15 +62,21 @@ public class PowerClient {
             powerClient.pinWrite(LOW_POWER_PIN, false);
         }
 
-        if (args.length < 4) {
-            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <rho> <cycle length>");
-            System.exit(0);
-        } else {
+        if (args.length == 3 && args[2] == "manual") {
+            // Manual mode
+            powerClient.setManualMode(true);
+            powerClient.generateRequest();
+            powerClient.listenForGrant();
+        } else if (args.length == 4) {
+            // Automatic mode
             final double rho = Double.parseDouble(args[2]);    // Average on length
             final int cycleLength = Integer.parseInt(args[3]);
             powerClient.calculateProbabilities(rho, cycleLength);
             powerClient.generateRequest();
             powerClient.listenForGrant();
+        } else {
+            System.out.println("Usage: java njit.smartgrid.PowerClient <client address> <server address> <rho> <cycle length>");
+            System.exit(0);
         }
         System.out.println("My address is " + myAddr.getHostAddress());
     }
@@ -68,7 +84,9 @@ public class PowerClient {
     public PowerClient(InetAddress myAddr, InetAddress serverAddr) {
         this.myAddr = myAddr;
         this.serverAddr = serverAddr;
-        this.log = new PowerLog(false);
+        if (!manualMode) {
+            this.log = new PowerLog(false);
+        }
     }
 
     public void listenForGrant() {
@@ -133,7 +151,9 @@ public class PowerClient {
                                 pinWrite(LOW_POWER_PIN, false);
                             }
                         }
-                        log.logGrant(myAddr, powerGranted, serverTime);
+                        if (!manualMode) {
+                            log.logGrant(myAddr, powerGranted, serverTime);
+                        }
                         break;
                     } else {
                         packetData.getInt();   // skip the auth fields if they aren't ours
@@ -156,14 +176,12 @@ public class PowerClient {
     // Send a request packet to the server that contains a timestamp, power level, and # of packets requested
     public void requestPower(int power) {
         lastRequestTime = System.currentTimeMillis();
-        if ((power == PowerRequest.POWER_BOTH) || (power == PowerRequest.POWER_HIGH) || (power == PowerRequest.POWER_LOW)) {
-            this.powerRequested = power;
-        } else {
-            this.powerRequested = 0;
-        }
+        this.powerRequested = power;
         printTimestamp();
         System.out.println("Requesting " + powerRequested + "W");
-        log.logRequest(myAddr, powerRequested, 0);
+        if (!manualMode) {
+            log.logRequest(myAddr, powerRequested, 0);
+        }
         try (DatagramSocket sendSocket = new DatagramSocket()) {    // New socket on dynamic port
             ByteBuffer requestBuffer = ByteBuffer.allocate(REQUEST_PACKET_LENGTH);
             requestBuffer.putLong(System.currentTimeMillis());  // Timestamp
@@ -183,19 +201,34 @@ public class PowerClient {
     }
 
     private void calculateProbabilities(double rho, int cycleLength) {
-        log.logString(String.format("Client: %s, Server: %s", myAddr.getHostAddress(), serverAddr.getHostAddress()));
-        log.logString(String.format("Auto generation: Enabled"));
+        if (!manualMode) {
+            log.logString(String.format("Client: %s, Server: %s", myAddr.getHostAddress(), serverAddr.getHostAddress()));
+            log.logString(String.format("Auto generation: Enabled"));
+        }
         final double beta = cycleLength * rho;
         final double alpha = cycleLength - beta;
         p = 1.0 / beta;          // Probability ON -> OFF
         q = 1.0 / (alpha + 1.0); // Probability OFF -> ON
-        log.logString(String.format("Input values: rho=%f, cycle_length=%d", rho, cycleLength));
-        log.logString(String.format("beta=%f, alpha=%f, p=%f, q=%f", beta, alpha, p, q));
+        if (!manualMode) {
+            log.logString(String.format("Input values: rho=%f, cycle_length=%d", rho, cycleLength));
+            log.logString(String.format("beta=%f, alpha=%f, p=%f, q=%f", beta, alpha, p, q));
+        }
     }
 
     private void generateRequest() {
         // Prevent rapid-fire requests
         if (System.currentTimeMillis() < lastRequestTime + minimumRequestSpacing) {
+            return;
+        }
+        if (manualMode) {
+            int power = 0;
+            if (pinRead(HIGH_POWER_SWITCH)) {
+                power += PowerRequest.POWER_HIGH;
+            }
+            if (pinRead(LOW_POWER_SWITCH)) {
+                power += PowerRequest.POWER_LOW;
+            }
+            requestPower(power);
             return;
         }
         Random rand = new Random();
@@ -239,9 +272,31 @@ public class PowerClient {
         }
     }
 
+    private boolean pinRead(int pin) {
+        try {
+            Process proc = Runtime.getRuntime().exec("gpio read " + pin);
+            BufferedReader stdInput = new BufferedReader(new InputStreamReader(proc.getInputStream()));
+            String result = stdInput.readLine();
+            if (result == "0") {
+                return true;
+            } else if (result == "1") {
+                return false;
+            } else {
+                System.err.println("GPIO read returned invalid result: " + result);
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
     private void printTimestamp() {
         Time time = new Time(System.currentTimeMillis());
         System.out.print("[" + time.toString() + "] ");
+    }
+
+    private void setManualMode(boolean val) {
+        manualMode = val;
     }
 
 }
